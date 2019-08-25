@@ -88,7 +88,8 @@ elif FLAGS.dataset == "miniimagenet":
 
     model = make_miniimagenet_cnn_model(FLAGS.num_output_classes)
     optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
-    # optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
+    if FLAGS.metamodel == "reptile":
+        optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
     model.compile(optimizer=optim,
                   loss=tf.keras.losses.sparse_categorical_crossentropy,
                   metrics=['sparse_categorical_accuracy'])
@@ -119,7 +120,7 @@ else:
 
 # Setup the meta-learner
 if FLAGS.metamodel == 'reptile':
-    optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.meta_lr)  # , beta1=0.0)
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate=FLAGS.meta_lr)
     metalearner = ReptileMetaLearner(model=model,
                                      optimizer=optimizer,
                                      name="ReptileMetaLearner")
