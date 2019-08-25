@@ -83,7 +83,7 @@ def create_miniimagenet_task_distribution(path_to_pkl,
                                            num_training_samples_per_class,
                                            num_test_samples_per_class,
                                            num_training_classes,
-                                           split_train_test=0.8)]
+                                           split_train_test=0.5)]
 
     # TODO: NOTE: HACK -- validation and test tasks use a fixed number of test-set samples, instead of the supplied
     # ones. This is because in MAML/FOMAML the test set is used to compute the meta-gradient, and a small number of
@@ -96,14 +96,14 @@ def create_miniimagenet_task_distribution(path_to_pkl,
                                                 num_training_samples_per_class,
                                                 num_test_samples_per_class,
                                                 num_training_classes,
-                                                split_train_test=0.8)]
+                                                split_train_test=0.5)]
 
     test_tasks_list = [ClassificationTask(miniimagenet_valX,
                                           miniimagenet_valY,
                                           num_training_samples_per_class,
                                           num_test_samples_per_class,
                                           num_training_classes,
-                                          split_train_test=0.8)]
+                                          split_train_test=0.5)]
 
     metatrain_task_distribution = TaskDistribution(tasks=train_tasks_list,
                                                    task_probabilities=[1.0],

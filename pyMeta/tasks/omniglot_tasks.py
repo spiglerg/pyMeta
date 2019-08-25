@@ -106,13 +106,13 @@ def create_omniglot_allcharacters_task_distribution(path_to_pkl,
                                                num_training_samples_per_class,
                                                num_test_samples_per_class,
                                                num_training_classes,
-                                               split_train_test=0.8)]
+                                               split_train_test=-1)] # defaults to num_train / (num_train+num_test)
     metatest_tasks_list = [ClassificationTask(charomniglot_testX,
                                               charomniglot_testY,
                                               num_training_samples_per_class,
                                               num_test_samples_per_class,
                                               num_training_classes,
-                                              split_train_test=0.8)]
+                                              split_train_test=-1)]
 
     metatrain_task_distribution = TaskDistribution(tasks=metatrain_tasks_list,
                                                    task_probabilities=[1.0],

@@ -46,32 +46,35 @@ class ClassificationTask(Task):
             num_training_classes: int
                 If -1, use all the classes in `y'. If >=1, the dataset will re-sample num_training_classes at
                 each reset, and only sample from them when queried, until the next reset.
-            split_train_test : float [0,1]
+            split_train_test : float [0,1], or <0
                 On each reset, the instances in the dataset are first split into a train and test set. From those,
                 num_training_samples_per_class and num_test_samples_per_class are sampled.
+                If `split_train_test' < 0, then the split is automatically set to #train_samples / (#train_samples + #test_samples)
         """
         self.X = X
         self.y = y
 
+        self.split_train_test = split_train_test
+        if self.split_train_test < 0:
+            self.split_train_test = num_training_samples_per_class / (num_training_samples_per_class + num_test_samples_per_class)
+
         self.num_training_samples_per_class = num_training_samples_per_class
-        if self.num_training_samples_per_class >= len(self.y)*split_train_test:
+        if self.num_training_samples_per_class >= len(self.y)*self.split_train_test:
             self.num_training_samples_per_class = -1
             print("WARNING: more training samples per class than available training instances were requested. \
-                   All the available instances (", int(len(self.y)*split_train_test), ") will be used.")
+                   All the available instances (", int(len(self.y)*self.split_train_test), ") will be used.")
 
         self.num_test_samples_per_class = num_test_samples_per_class
-        if self.num_test_samples_per_class >= len(self.y)*(1-split_train_test):
+        if self.num_test_samples_per_class >= len(self.y)*(1-self.split_train_test):
             self.num_test_samples_per_class = -1
             print("WARNING: more test samples per class than available test instances were requested. \
-                   All the available instances (", int(len(self.y)*(1-split_train_test)), ") will be used.")
+                   All the available instances (", int(len(self.y)*(1-self.split_train_test)), ") will be used.")
 
         self.num_training_classes = num_training_classes
         if self.num_training_classes >= len(set(self.y)):
             self.num_training_classes = -1
             print("WARNING: more training classes than available in the dataset were requested. \
                    All the available classes (", len(self.y), ") will be used.")
-
-        self.split_train_test = split_train_test
 
         self.reset()
 

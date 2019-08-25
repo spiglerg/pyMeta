@@ -7,7 +7,7 @@ If you use *pyMeta* in your research and would like to cite the liberary, we sug
 
 ## Data
 
-Acquire data using the 'fetch_data.sh' script from https://github.com/openai/supervised-reptile, then process it into a single pkl file using the scripts 'data/miniimagenet/make_miniimagenet_dataset.py' and 'data/omniglot/make_omniglot_dataset.py'.
+Acquire data using the 'fetch_data.sh' script from https://github.com/openai/supervised-reptile, then process it into a single pkl file using the scripts 'scripts/make_miniimagenet_dataset.py' and 'scripts/make_omniglot_dataset.py'.
 
 ## Usage
 
@@ -31,6 +31,11 @@ python3 example_metatrain.py --dataset="sinusoid" --metamodel="reptile" \
 
 
 Omniglot:
+python3 example_metatrain.py --dataset="omniglot" --metamodel="fomaml" \
+    --num_output_classes=5 --num_train_samples_per_class=5 --num_test_samples_per_class=15 --num_inner_training_iterations=5 --inner_batch_size=-1 \
+    --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 \
+    --model_save_filaname="saved/model.h5" --num_outer_metatraining_iterations=30000
+
 
 --- fomaml
 --- reptile
