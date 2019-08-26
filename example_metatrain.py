@@ -40,7 +40,6 @@ flags.DEFINE_integer('num_validation_batches', 10, 'number of batches to sample 
 # Inner-training options
 flags.DEFINE_integer('num_inner_training_iterations', 5, 'number of gradient descent steps to perform for each task in a meta-batch (inner steps).')
 flags.DEFINE_integer('inner_batch_size', -1, 'batch size: number of task-specific points sampled at each inner iteration. If <0, then it defaults to num_train_samples_per_class*num_output_classes.')
-
 flags.DEFINE_float('inner_lr', 0.001, 'learning rate of the inner optimizer. Default 0.01 for FOMAML, 1.0 for Reptile')
 
 # Logging, saving, and testing options
@@ -55,7 +54,6 @@ if FLAGS.inner_batch_size < 0:
     FLAGS.inner_batch_size = FLAGS.num_train_samples_per_class * FLAGS.num_output_classes
 FLAGS.dataset.lower()
 FLAGS.metamodel.lower()
-
 
 np.random.seed(FLAGS.seed)
 tf.random.set_random_seed(FLAGS.seed)
@@ -157,11 +155,11 @@ last_time = time.time()
 for outer_iter in range(FLAGS.num_outer_metatraining_iterations+1):
     meta_batch = metatrain_task_distribution.sample_batch()
 
+    # META-TRAINING over batch
     # TODO: inefficient; we are solving each task sequentially, when we should rather do it in parallel
     # However it may be better to do it this way for few-shot classification problems, where few inner iterations are
     # used.
     metabatch_results = []
-
     avg_loss_lastbatch = np.asarray([0.0, 0.0])
     for task in meta_batch:
         # Train on task for a number of num_inner_training_iterations iterations
@@ -177,6 +175,8 @@ for outer_iter in range(FLAGS.num_outer_metatraining_iterations+1):
     # Update the meta-learner after all batch has been computed
     metalearner.update(metabatch_results)
 
+
+    ## META-TESTING every `test_every_k_iterations' iterations
     if outer_iter % FLAGS.test_every_k_iterations == 0:
         # Evaluate the meta-learner on a set of the validation set
         print("Time: ", time.time()-last_time)
