@@ -3,7 +3,7 @@
 
 pyMeta is a library to manage machine learning problems as `Tasks' and to sample from Task distributions. Includes Tensorflow implementation of FOMAML and Reptile.
 
-If you use *pyMeta* in your research and would like to cite the liberary, we suggest you cite the [PAPER TODO](LINKTOARXIV).
+If you use *pyMeta* in your research and would like to cite the library, we suggest you cite the [PAPER TODO](LINKTOARXIV).
 
 ## Data
 
@@ -46,13 +46,15 @@ python3 example_metatrain.py --dataset="sinusoid" --metamodel="reptile" \
     --model_save_filaname="saved/model.h5" --num_outer_metatraining_iterations=10000
 
 Omniglot:
-[TODO : insert good hyperparameters]
+python3 example_metatrain.py --dataset="omniglot" --metamodel="reptile" \
+    --num_output_classes=5 --num_train_samples_per_class=10 --num_test_samples_per_class=10 --num_inner_training_iterations=5 --inner_batch_size=-1 \
+    --meta_lr=0.1 --inner_lr=0.001 --meta_batch_size=5 --num_validation_batches=10 \
+    --model_save_filaname="saved/model.h5" --num_outer_metatraining_iterations=30000
 
 Mini-ImageNet:
-[TODO: check the following hyperparameters / update]
-python3 example_metatrain.py --dataset="miniimagenet" --metamodel="reptile" \
-    --num_output_classes=5 --num_train_samples_per_class=15 --num_test_samples_per_class=15 --num_inner_training_iterations=8 --inner_batch_size=10 \
-    --meta_lr=1.0 --inner_lr=0.001 --meta_batch_size=5 --num_validation_batches=10 \
+python3 example_metatrain.py --dataset="omniglot" --metamodel="reptile" \
+    --num_output_classes=5 --num_train_samples_per_class=15 --num_test_samples_per_class=15 --num_inner_training_iterations=8 --inner_batch_size=-1 \
+    --meta_lr=0.1 --inner_lr=0.001 --meta_batch_size=5 --num_validation_batches=10 \
     --model_save_filaname="saved/model.h5" --num_outer_metatraining_iterations=30000
 ```
 

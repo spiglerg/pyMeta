@@ -73,7 +73,8 @@ if FLAGS.dataset == "omniglot":
 
     model = make_omniglot_cnn_model(FLAGS.num_output_classes)
     optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
-    # optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
+    if FLAGS.metamodel == "reptile":
+        optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
     model.compile(optimizer=optim,
                   loss=tf.keras.losses.sparse_categorical_crossentropy,
                   metrics=['sparse_categorical_accuracy'])
