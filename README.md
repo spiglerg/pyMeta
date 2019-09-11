@@ -3,7 +3,25 @@
 
 pyMeta is a library to manage machine learning problems as `Tasks' and to sample from Task distributions. Includes Tensorflow implementation of FOMAML and Reptile.
 
-If you use *pyMeta* in your research and would like to cite the library, we suggest you cite the [PAPER TODO](LINKTOARXIV).
+If you use *pyMeta* in your research and would like to cite the library, we suggest you cite:
+```
+Giacomo Spigler. Meta-learnt priors slow down catastrophic forgetting in neural networks. arXiv preprint arXiv:1909.04170, 2019.
+```
+
+Bibtex:
+```
+@ARTICLE{2019arXiv190904170S,
+  author = {{Spigler}, Giacomo},
+  title = "{Meta-learnt priors slow down catastrophic forgetting in neural networks}",
+  journal = {arXiv e-prints},
+  year = "2019",
+  month = "Sep",
+  eid = {arXiv:1909.04170},
+  pages = {arXiv:1909.04170},
+  archivePrefix = {arXiv},
+  eprint = {1909.04170},
+}
+```
 
 ## Data
 
