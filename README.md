@@ -10,7 +10,7 @@ Giacomo Spigler. Meta-learnt priors slow down catastrophic forgetting in neural 
 
 Bibtex:
 ```
-@ARTICLE{2019arXiv190904170S,
+@ARTICLE{spigler2019,
   author = {{Spigler}, Giacomo},
   title = "{Meta-learnt priors slow down catastrophic forgetting in neural networks}",
   journal = {arXiv e-prints},
