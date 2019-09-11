@@ -45,7 +45,7 @@ flags.DEFINE_float('inner_lr', 0.001, 'learning rate of the inner optimizer. Def
 # Logging, saving, and testing options
 flags.DEFINE_integer('save_every_k_iterations', 1000, 'the model is saved every k iterations.')
 flags.DEFINE_integer('test_every_k_iterations', 100, 'the performance of the model is evaluated every k iterations.')
-flags.DEFINE_string('model_save_filaname', 'saved/model.h5', 'path + filename where to save the model to.')
+flags.DEFINE_string('model_save_filename', 'saved/model.h5', 'path + filename where to save the model to.')
 
 flags.DEFINE_integer('seed', '100', 'random seed.')
 
