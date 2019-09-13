@@ -203,7 +203,7 @@ for outer_iter in range(FLAGS.num_outer_metatraining_iterations+1):
 
     if outer_iter % FLAGS.save_every_k_iterations == 0:
         metalearner.task_begin(meta_batch[0])  # copy back the initial parameters to the model's weights
-        model.save(FLAGS.model_save_filaname)
+        model.save(FLAGS.model_save_filename)
 
 
 if FLAGS.dataset == "sinusoid":
