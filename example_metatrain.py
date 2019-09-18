@@ -1,6 +1,7 @@
 # NOTE: the code is slightly different when RL environments are used as tasks, as there is no more difference between
 # train and test datasets, and because the agents need to interact with the environment directly.
 
+from pyMeta.tasks.dataset_from_files_tasks import create_omniglot_from_files_task_distribution
 from pyMeta.tasks.omniglot_tasks import create_omniglot_allcharacters_task_distribution
 from pyMeta.tasks.miniimagenet_tasks import create_miniimagenet_task_distribution
 from pyMeta.tasks.sinusoid_tasks import create_sinusoid_task_distribution
@@ -67,7 +68,7 @@ if FLAGS.dataset == "omniglot":
                                                         num_training_samples_per_class=FLAGS.num_train_samples_per_class,
                                                         num_test_samples_per_class=FLAGS.num_test_samples_per_class,
                                                         num_training_classes=FLAGS.num_output_classes,
-                                                        batch_size=FLAGS.meta_batch_size)
+                                                        meta_batch_size=FLAGS.meta_batch_size)
 
     model = make_omniglot_cnn_model(FLAGS.num_output_classes)
     optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
@@ -83,7 +84,7 @@ elif FLAGS.dataset == "miniimagenet":
                         num_training_samples_per_class=FLAGS.num_train_samples_per_class,
                         num_test_samples_per_class=FLAGS.num_test_samples_per_class,
                         num_training_classes=FLAGS.num_output_classes,
-                        batch_size=FLAGS.meta_batch_size)
+                        meta_batch_size=FLAGS.meta_batch_size)
 
     model = make_miniimagenet_cnn_model(FLAGS.num_output_classes)
     optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
@@ -105,7 +106,7 @@ elif FLAGS.dataset == "sinusoid":
                                                           num_training_samples=FLAGS.num_train_samples_per_class,
                                                           num_test_samples=FLAGS.num_test_samples_per_class,
                                                           num_test_tasks=100,
-                                                          batch_size=FLAGS.meta_batch_size)
+                                                          meta_batch_size=FLAGS.meta_batch_size)
 
     model = make_sinusoid_model()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0),

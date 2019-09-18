@@ -1,9 +1,9 @@
 datasets/miniimagenet/miniimagenet.pkl
 datasets/omniglot/omniglot.pkl
-saved/
+datasets/tmp_omniglot_images/
 
 # Saved models
-*.h5
+saved/*.h5
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

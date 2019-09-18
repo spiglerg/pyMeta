@@ -28,6 +28,7 @@ class Task:
         pass
 
 
+
 class ClassificationTask(Task):
     def __init__(self, X, y, num_training_samples_per_class=-1, num_test_samples_per_class=-1, num_training_classes=-1,
                  split_train_test=0.8):
@@ -53,6 +54,8 @@ class ClassificationTask(Task):
         """
         self.X = X
         self.y = y
+
+        self._deepcopy_avoid_copying = ['X', 'y']
 
         self.split_train_test = split_train_test
         if self.split_train_test < 0:
@@ -89,7 +92,7 @@ class ClassificationTask(Task):
         result = cls.__new__(cls)
         memo[id(self)] = result
         for k, v in self.__dict__.items():
-            if k != 'X' and k != 'y':
+            if k not in self._deepcopy_avoid_copying:
                 setattr(result, k, deepcopy(v, memo))
         setattr(result, 'X', self.X)
         setattr(result, 'y', self.y)
@@ -134,7 +137,6 @@ class ClassificationTask(Task):
         """
         Fir a model on data sampled from the current Task, performing `num_iterations' iterations of optimization
         with a minibatch of size `batch_size'.
-
         `model' must be a Keras model. It is a bit of a limitation, but it simplifies handling of the code
         quite significantly, so we opted for this solution, for the moment.
         """
@@ -175,6 +177,62 @@ class ClassificationTask(Task):
     def get_test_set(self):
         return self.X[self.test_indices], np.asarray([self.classes_ids.index(c)
                                                       for c in self.y[self.test_indices]], dtype=np.int64)
+
+
+class ClassificationTaskFromFiles(ClassificationTask):
+    def __init__(self, X, y, num_training_samples_per_class=-1, num_test_samples_per_class=-1,
+                 num_training_classes=-1, split_train_test=0.8, input_parse_fn=None, num_parallel_processes=None):
+        """
+        input_parse_fn : function
+            This function takes a filename as input and returns a loaded and processed sample.
+        num_parallel_processes : int or None
+            If the argument is not None, then minibatches are loaded from file and processed in a parallel Pool with
+            'num_parallel_processes' processes.
+        """
+        self.input_parse_fn = input_parse_fn
+
+        # NOTE: EXPERIMENTAL
+        # TODO: debug: error too many open files, but my OS allows 1024, so something may be wrong.
+        self.num_parallel_processes = num_parallel_processes
+
+        super().__init__(X=X, y=y,
+                         num_training_samples_per_class=num_training_samples_per_class,
+                         num_test_samples_per_class=num_test_samples_per_class,
+                         num_training_classes=num_training_classes, split_train_test=split_train_test)
+
+    def reset(self):
+        super().reset()
+
+        if (self.num_parallel_processes is not None) and not hasattr(self, 'parallel_pool'):
+            import multiprocessing
+            self.parallel_pool = multiprocessing.Pool(self.num_parallel_processes)
+            self._deepcopy_avoid_copying += ['parallel_pool']
+
+    def _load_batch(self, indices):
+        if self.num_parallel_processes is not None:
+            # Load batch in Parallel
+            filenames = [self.X[i] for i in indices]
+            batch_x = self.parallel_pool.map(self.input_parse_fn, filenames)
+        else:
+            # Load batch in Sequence
+            batch_x = [None]*len(indices)
+            for i, ind in enumerate(indices):
+                batch_x[i] = self.input_parse_fn(self.X[ind])
+        batch_y = np.asarray([self.classes_ids.index(c) for c in self.y[indices]], dtype=np.int64)
+        return np.asarray(batch_x), batch_y
+
+    def sample_batch(self, batch_size):
+        batch_indices = np.random.choice(self.train_indices, batch_size, replace=False)
+        batch_X, batch_y = self._load_batch(batch_indices)
+        return batch_X, batch_y
+
+    def get_train_set(self):
+        batch_X, batch_y = self._load_batch(self.train_indices)
+        return batch_X, batch_y
+
+    def get_test_set(self):
+        batch_X, batch_y = self._load_batch(self.test_indices)
+        return batch_X, batch_y
 
 
 class TaskAsSequenceOfTasks(Task):

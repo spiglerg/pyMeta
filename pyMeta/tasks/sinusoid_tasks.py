@@ -67,7 +67,7 @@ def create_sinusoid_task_distribution(min_amplitude=0.1,
                                       num_training_samples=10,
                                       num_test_samples=100,
                                       num_test_tasks=100,
-                                      batch_size=5):
+                                      meta_batch_size=5):
     tasks_list = [SinusoidTask(min_amplitude=min_amplitude,
                                max_amplitude=max_amplitude,
                                min_phase=min_phase,
@@ -79,17 +79,17 @@ def create_sinusoid_task_distribution(min_amplitude=0.1,
 
     metatrain_task_distribution = TaskDistribution(tasks=tasks_list,
                                                    task_probabilities=[1.0],
-                                                   batch_size=batch_size,
+                                                   batch_size=meta_batch_size,
                                                    sample_with_replacement=True)
 
     metaval_task_distribution = TaskDistribution(tasks=tasks_list,
                                                  task_probabilities=[1.0],
-                                                 batch_size=batch_size,
+                                                 batch_size=meta_batch_size,
                                                  sample_with_replacement=True)
 
     metatest_task_distribution = TaskDistribution(tasks=tasks_list,
                                                   task_probabilities=[1.0],
-                                                  batch_size=batch_size,
+                                                  batch_size=meta_batch_size,
                                                   sample_with_replacement=True)
 
     return metatrain_task_distribution, metaval_task_distribution, metatest_task_distribution
