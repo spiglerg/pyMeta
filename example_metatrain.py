@@ -3,6 +3,7 @@
 
 from pyMeta.tasks.dataset_from_files_tasks import create_omniglot_from_files_task_distribution
 from pyMeta.tasks.omniglot_tasks import create_omniglot_allcharacters_task_distribution
+from pyMeta.tasks.cifar100_tasks import create_cifar100_task_distribution
 from pyMeta.tasks.miniimagenet_tasks import create_miniimagenet_task_distribution
 from pyMeta.tasks.sinusoid_tasks import create_sinusoid_task_distribution
 from pyMeta.models.reptile import ReptileMetaLearner
@@ -24,7 +25,7 @@ tf.keras.backend.set_learning_phase(1)
 FLAGS = flags.FLAGS
 
 # Dataset and model options
-flags.DEFINE_string('dataset', 'omniglot', 'omniglot or miniimagenet or sinusoid')
+flags.DEFINE_string('dataset', 'omniglot', 'omniglot or miniimagenet or sinusoid or cifar100')
 flags.DEFINE_string('metamodel', 'fomaml', 'fomaml or reptile')
 
 flags.DEFINE_integer('num_output_classes', 5, 'number of classes used in classification (e.g. 5-way classification).')
@@ -69,6 +70,23 @@ if FLAGS.dataset == "omniglot":
                                                         num_test_samples_per_class=FLAGS.num_test_samples_per_class,
                                                         num_training_classes=FLAGS.num_output_classes,
                                                         meta_batch_size=FLAGS.meta_batch_size)
+
+    model = make_omniglot_cnn_model(FLAGS.num_output_classes)
+    optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
+    if FLAGS.metamodel == "reptile":
+        optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
+    model.compile(optimizer=optim,
+                  loss=tf.keras.losses.sparse_categorical_crossentropy,
+                  metrics=['sparse_categorical_accuracy'])
+
+elif FLAGS.dataset == "cifar100":
+    metatrain_task_distribution, metaval_task_distribution, metatest_tasks_distribution = \
+                        create_cifar100_task_distribution(
+                                                      num_training_samples_per_class=FLAGS.num_train_samples_per_class,
+                                                      num_test_samples_per_class=FLAGS.num_test_samples_per_class,
+                                                      num_training_classes=FLAGS.num_output_classes,
+                                                      meta_train_test_split=0.7,
+                                                      meta_batch_size=FLAGS.meta_batch_size)
 
     model = make_omniglot_cnn_model(FLAGS.num_output_classes)
     optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
