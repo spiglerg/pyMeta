@@ -8,6 +8,7 @@ from pyMeta.tasks.miniimagenet_tasks import create_miniimagenet_task_distributio
 from pyMeta.tasks.sinusoid_tasks import create_sinusoid_task_distribution
 from pyMeta.models.reptile import ReptileMetaLearner
 from pyMeta.models.fomaml import FOMAMLMetaLearner
+from pyMeta.models.implicit_maml import iMAMLMetaLearner
 from pyMeta.networks import make_omniglot_cnn_model, make_miniimagenet_cnn_model, make_sinusoid_model
 
 import sys, os
@@ -26,7 +27,7 @@ FLAGS = flags.FLAGS
 
 # Dataset and model options
 flags.DEFINE_string('dataset', 'omniglot', 'omniglot or miniimagenet or sinusoid or cifar100')
-flags.DEFINE_string('metamodel', 'fomaml', 'fomaml or reptile')
+flags.DEFINE_string('metamodel', 'fomaml', 'fomaml or reptile or imaml')
 
 flags.DEFINE_integer('num_output_classes', 5, 'number of classes used in classification (e.g. 5-way classification).')
 flags.DEFINE_integer('num_train_samples_per_class', 5, 'number of samples per class used in classification (e.g. 5-shot classification).')
@@ -61,6 +62,14 @@ np.random.seed(FLAGS.seed)
 tf.random.set_random_seed(FLAGS.seed)
 
 
+def custom_sparse_categorical_cross_entropy_loss(y_true, y_pred):
+    ## Implementation of sparse_categorial_cross_entropy_loss based on categorical_crossentropy,
+    ## to work-around the limitation of the former when computing 2nd order derivatives (in the current
+    ## Tensorflow implementation)
+    y_true = tf.one_hot(tf.cast(y_true, tf.int32), FLAGS.num_output_classes)
+    return tf.keras.losses.categorical_crossentropy(y_true, y_pred)
+
+
 # Create the dataset and network model
 if FLAGS.dataset == "omniglot":
     metatrain_task_distribution, metaval_task_distribution, metatest_tasks_distribution = \
@@ -76,7 +85,7 @@ if FLAGS.dataset == "omniglot":
     if FLAGS.metamodel == "reptile":
         optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
     model.compile(optimizer=optim,
-                  loss=tf.keras.losses.sparse_categorical_crossentropy,
+                  loss=custom_sparse_categorical_cross_entropy_loss, #tf.keras.losses.sparse_categorical_crossentropy,
                   metrics=['sparse_categorical_accuracy'])
 
 elif FLAGS.dataset == "cifar100":
@@ -109,7 +118,7 @@ elif FLAGS.dataset == "miniimagenet":
     if FLAGS.metamodel == "reptile":
         optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
     model.compile(optimizer=optim,
-                  loss=tf.keras.losses.sparse_categorical_crossentropy,
+                  loss=custom_sparse_categorical_cross_entropy_loss, #tf.keras.losses.sparse_categorical_crossentropy,
                   metrics=['sparse_categorical_accuracy'])
 
 elif FLAGS.dataset == "sinusoid":
@@ -149,6 +158,12 @@ elif FLAGS.metamodel == 'fomaml':
     metalearner = FOMAMLMetaLearner(model=model,
                                     optimizer=optimizer,
                                     name="FOMAMLMetaLearner")
+elif FLAGS.metamodel == 'imaml':
+    optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.meta_lr)  # , beta1=0.0)
+    # optimizer = tf.train.GradientDescentOptimizer(learning_rate=FLAGS.meta_lr)
+    metalearner = iMAMLMetaLearner(model=model,
+                                  optimizer=optimizer,
+                                  name="iMAMLMetaLearner")
 
 
 # Tensorflow Session and initialization (all variables, and meta-learner's initial state)
