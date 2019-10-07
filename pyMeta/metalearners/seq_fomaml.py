@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 
 from pyMeta.core.task import TaskAsSequenceOfTasks
-from pyMeta.models.fomaml import FOMAMLMetaLearner
+from pyMeta.metalearners.fomaml import FOMAMLMetaLearner
 
 
 class SeqFOMAMLMetaLearner(FOMAMLMetaLearner):

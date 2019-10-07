@@ -6,9 +6,9 @@ from pyMeta.tasks.omniglot_tasks import create_omniglot_allcharacters_task_distr
 from pyMeta.tasks.cifar100_tasks import create_cifar100_task_distribution
 from pyMeta.tasks.miniimagenet_tasks import create_miniimagenet_task_distribution
 from pyMeta.tasks.sinusoid_tasks import create_sinusoid_task_distribution
-from pyMeta.models.reptile import ReptileMetaLearner
-from pyMeta.models.fomaml import FOMAMLMetaLearner
-from pyMeta.models.implicit_maml import iMAMLMetaLearner
+from pyMeta.metalearners.reptile import ReptileMetaLearner
+from pyMeta.metalearners.fomaml import FOMAMLMetaLearner
+from pyMeta.metalearners.implicit_maml import iMAMLMetaLearner
 from pyMeta.networks import make_omniglot_cnn_model, make_miniimagenet_cnn_model, make_sinusoid_model
 
 import sys, os

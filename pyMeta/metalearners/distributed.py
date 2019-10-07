@@ -8,9 +8,9 @@ IMPORTANT: this has only been tested lightly. It seems to be working, but it is 
 import numpy as np
 
 from pyMeta.core.meta_learner import GradBasedMetaLearner
-from pyMeta.models.fomaml import FOMAMLMetaLearner
-from pyMeta.models.reptile import ReptileMetaLearner
-from pyMeta.models.seq_fomaml import SeqFOMAMLMetaLearner
+from pyMeta.metalearners.fomaml import FOMAMLMetaLearner
+from pyMeta.metalearners.reptile import ReptileMetaLearner
+from pyMeta.metalearners.seq_fomaml import SeqFOMAMLMetaLearner
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
