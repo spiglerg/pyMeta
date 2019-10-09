@@ -292,6 +292,9 @@ class TaskAsSequenceOfTasks(Task):
             If true, returns ret_info['weights_<i>'] for i=0...(num_tasks-1)
         """
 
+        if hasattr(model, 'cl_reset'):
+            model.cl_reset()
+
         ret_info = {}
         for task_i in range(len(self.current_task_sequence)):
             task = self.current_task_sequence[task_i]
@@ -303,6 +306,10 @@ class TaskAsSequenceOfTasks(Task):
 
             if return_weights_after_each_task:
                 ret_info["weights_"+str(task_i)] = tf.keras.backend.get_session().run(model.trainable_variables)
+
+            # Callbacks for continual-learning algorithms
+            if hasattr(model, 'run_after_task'):
+                model.run_after_task()
 
         return ret_info
 

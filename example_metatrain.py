@@ -163,6 +163,7 @@ elif FLAGS.metamodel == 'imaml':
     # optimizer = tf.train.GradientDescentOptimizer(learning_rate=FLAGS.meta_lr)
     metalearner = iMAMLMetaLearner(model=model,
                                   optimizer=optimizer,
+                                  lambda_reg = 0.5,
                                   name="iMAMLMetaLearner")
 
 
@@ -178,6 +179,7 @@ metalearner.initialize(session=sess)
 model.summary()
 print("Meta model: ", FLAGS.metamodel)
 print("Problem: ", FLAGS.dataset)
+
 
 
 # Main meta-training loop: for each outer iteration, we will sample a number of training tasks, then train on each of
