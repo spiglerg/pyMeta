@@ -1,7 +1,7 @@
 
 ## About
 
-pyMeta is a library to manage machine learning problems as `Tasks' and to sample from Task distributions. Includes Tensorflow implementation of FOMAML and Reptile.
+pyMeta is a library to manage machine learning problems as `Tasks' and to sample from Task distributions. Includes Tensorflow implementation of FOMAML and Reptile. <b>New support has been added for the recently published [iMAML (Rajeswaran, Finn, Kakade and Levine (2019)](https://arxiv.org/abs/1909.04630)!</b>
 
 If you use *pyMeta* in your research and would like to cite the library, we suggest you cite [link](https://arxiv.org/abs/1909.04170):
 ```
