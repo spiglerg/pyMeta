@@ -32,6 +32,7 @@ Acquire data using the 'fetch_data.sh' script from https://github.com/openai/sup
 Broad requirements:
 + tested with Python 3.6 and Tensorflow 1.14
 + For the preliminary distributed implementation: mpi4py
++ For iMAML: tensorflow-probability
 
 For 5-way, 5-shot training on the Omniglot and MinImageNet datasets, you can try the following configurations. For FOMAML:
 
