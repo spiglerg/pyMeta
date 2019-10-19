@@ -22,6 +22,9 @@ from pyMeta.core.task import TaskAsSequenceOfTasks
 class iMAMLMetaLearner(GradBasedMetaLearner):
     def __init__(self, model, optimizer=tf.train.AdamOptimizer(learning_rate=0.001), lambda_reg=1.0, n_iters_optimizer=5, name="FOMAMLMetaLearner"):
         """
+        IMPORTANT: the Keras model passed to iMAML must be re-compiled after creating the metalearner object, as it
+        adds a new loss (L2 regularization wrt to the initial parameters).
+
         In general, meta-learners objects should be created before tf.global_variables_initializer() is called, in
         case variables have to be created.
 
@@ -65,6 +68,26 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
         # clipped_grads = [(tf.clip_by_norm(grad, 10), var) for grad, var in zip(self._gradients_placeholders,
         #                                                                        self.model.trainable_variables)]
         # self.apply_metagradients = self.optimizer.apply_gradients(clipped_grads)
+
+        ## Create and add an explicit regularizer for the model (L2 distance from the starting weights)
+        self.regularizer_initial_params = [tf.Variable(tf.zeros(v.get_shape(), dtype=v.dtype.base_dtype))
+                                           for v in model.trainable_variables]
+        self.assign_regularizer_ops = tf.group(*[tf.assign(v, p) for v, p in zip(self.regularizer_initial_params, self.model.trainable_variables)]) # must call this AFTER the initial parameters have been reset!
+        def l2_loss_phi_phi0():
+            aux_loss = tf.add_n([ tf.reduce_sum( \
+                                  tf.square(model.trainable_variables[i] - self.regularizer_initial_params[i]))
+                                for i in range(len(model.trainable_variables))])
+            aux_loss = tf.identity(0.5 * self.lambda_reg * aux_loss, name='iMAML-Regularizer')
+            return aux_loss
+        # Remove the previous regularizer, if present (this is to guarantee that the correct variables are used
+        # for regularization).
+        ## model.losses = [l for l in model.losses if not l.name.startswith('iMAML-Regularizer')]
+        if len([l for l in model.losses if l.name.startswith('iMAML-Regularizer')])>0:
+            # Most likely because of model saving/loading or wrapping it in a meta-learner and then into
+            # another one
+            print("iMAML ERROR: adding regularizer multiple times!")
+        model.add_loss(l2_loss_phi_phi0)
+
 
 
     def _tf_list_of_tensors_to_vector(self, weights):
@@ -165,14 +188,16 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
                 for dim in shape:
                     w_size *= dim.value
                 n += w_size
+            #"""
             self.x_op = tfp.optimizer.lbfgs_minimize(
                 self._optim_func,
-                tf.zeros((n,), dtype=np.float32),
+                tf.zeros((n,), dtype=tf.float32),
                 num_correction_pairs=10,
                 tolerance=1e-08,
                 max_iterations=self.n_iters_optimizer,
                 parallel_iterations=1,
             )
+            #"""
 
             self.result_vector_placeholder = tf.placeholder(dtype=tf.float32, shape=(n,))
             self.result_to_list_of_tensors = self._tf_vector_to_list_of_tensors(
@@ -209,8 +234,12 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
         """
         Method to be called before training on each meta-batch task
         """
+        super().task_begin(task=task)
+
         # Reset the model to the current weights initialization
         self.session.run(self._assign_op, feed_dict=dict(zip(self._placeholders, self.current_initial_parameters)))
+        self.session.run(self.assign_regularizer_ops) # Only run this AFTER the above (which assigns the
+                                                      # current_initial_parameters back to the model parameters
 
     def task_end(self, task=None, **kwargs):
         """
