@@ -168,7 +168,6 @@ elif FLAGS.metamodel == 'imaml':
                                   name="iMAMLMetaLearner")
 
 
-print("(******", model.losses)
 
 # The model should be compiled AFTER being wrapped by a meta-learner, as the meta-learner may add special ops
 # or regularizers to the model.
