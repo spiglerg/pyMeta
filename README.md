@@ -79,11 +79,8 @@ python3 example_metatrain.py --dataset="miniimagenet" --metamodel="reptile" \
 
 For i-MAML:
 ```
-Mini-ImageNet:
-python3 example_metatrain.py --dataset="miniimagenet" --metamodel="imaml" \
-    --num_output_classes=5 --num_train_samples_per_class=5 --num_test_samples_per_class=15 --num_inner_training_iterations=5 --inner_batch_size=-1 \
-    --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 \
-    --model_save_filename="saved/model.h5" --num_outer_metatraining_iterations=30000
+Omniglot:
+ python3 example_metatrain.py --dataset="omniglot" --metamodel="imaml" --num_output_classes=5 --num_train_samples_per_class=5 --num_test_samples_per_class=15 --num_inner_training_iterations=20 --inner_batch_size=-1 --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 --model_save_filename="saved/model.h5" --num_outer_metatraining_iterations=30000
 ```
 
 
