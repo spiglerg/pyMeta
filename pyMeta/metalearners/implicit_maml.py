@@ -82,11 +82,10 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
             return aux_loss
         # Remove the previous regularizer, if present (this is to guarantee that the correct variables are used
         # for regularization).
-        ## model.losses = [l for l in model.losses if not l.name.startswith('iMAML-Regularizer')]
         if len([l for l in model.losses if l.name.startswith('iMAML-Regularizer')])>0:
             # Most likely because of model saving/loading or wrapping it in a meta-learner and then into
             # another one
-            print("iMAML ERROR: adding regularizer multiple times!")
+            print("\n\n\n*** iMAML ERROR: adding regularizer multiple times! ***\n\n\n")
         model.add_loss(l2_loss_phi_phi0)
 
     def _gradients_for_task_CG(self, t):

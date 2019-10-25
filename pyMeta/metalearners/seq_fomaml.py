@@ -1,6 +1,6 @@
 """
 Implementation of the First-Order MAML (FOMAML) algorithm for meta-learning.
-See --- TODO: ARXIV PAPER COMING ; CHECK BACK SOON! ---
+For details, see https://arxiv.org/abs/1909.04170 .
 """
 
 import numpy as np
