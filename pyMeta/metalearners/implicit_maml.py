@@ -76,8 +76,7 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
                                            for v in model.trainable_variables]
         self.assign_regularizer_ops = tf.group(*[tf.assign(v, p) for v, p in zip(self.regularizer_initial_params, self.model.trainable_variables)]) # must call this AFTER the initial parameters have been reset!
         def l2_loss_phi_phi0():
-            aux_loss = tf.add_n([ tf.reduce_sum( \
-                                  tf.square(model.trainable_variables[i] - self.regularizer_initial_params[i]))
+            aux_loss = tf.add_n([ tf.reduce_sum(tf.square(model.trainable_variables[i] - self.regularizer_initial_params[i]))
                                 for i in range(len(model.trainable_variables))])
             aux_loss = tf.identity(0.5 * self.lambda_reg * aux_loss, name='iMAML-Regularizer')
             return aux_loss
@@ -89,34 +88,6 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
             # another one
             print("iMAML ERROR: adding regularizer multiple times!")
         model.add_loss(l2_loss_phi_phi0)
-
-
-
-    def _tf_list_of_tensors_to_vector(self, weights):
-        w_vector = None
-        for w in weights:
-            w_unwrap = tf.reshape(w, [-1])
-            if w_vector is None:
-                w_vector = tf.identity(w_unwrap)
-            else:
-                w_vector = tf.concat([w_vector, w_unwrap], axis=0)
-        return tf.reshape(w_vector,[-1])
-
-    def _tf_vector_to_list_of_tensors(self, weights, w_vec):
-        tensors = []
-        begin_index = 0
-        for w in weights:
-            shape = w.get_shape()
-            w_size = 1
-            for dim in shape:
-                w_size *= dim.value
-
-            w_tensor = tf.reshape(tf.slice(w_vec,begin=[begin_index],size=[w_size]), w.shape)
-            begin_index += w_size
-
-            tensors.append(w_tensor)
-        return tensors
-
 
     def _gradients_for_task_CG(self, t):
         """
