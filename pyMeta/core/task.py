@@ -92,7 +92,7 @@ class ClassificationTask(Task):
         result = cls.__new__(cls)
         memo[id(self)] = result
         for k, v in self.__dict__.items():
-            if k not in self._deepcopy_avoid_copying:
+            if hasattr(self,'_deepcopy_avoid_copying') and k not in self._deepcopy_avoid_copying:
                 setattr(result, k, deepcopy(v, memo))
         setattr(result, 'X', self.X)
         setattr(result, 'y', self.y)

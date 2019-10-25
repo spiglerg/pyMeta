@@ -6,6 +6,8 @@ The interface is just a tentative suggestion, as different algorithms may have v
 
 import tensorflow as tf
 
+from pyMeta.core.task import Task
+
 
 class GradBasedMetaLearner:
     """
@@ -42,7 +44,8 @@ class GradBasedMetaLearner:
         """
         Method to be called before training on each meta-batch task
         """
-        pass
+        if task is not None and not isinstance(task, Task):
+            print("ERROR: task_begin requires a `Task' object as argument")
 
     def task_end(self, task=None, **kwargs):
         """

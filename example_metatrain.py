@@ -81,12 +81,12 @@ if FLAGS.dataset == "omniglot":
                                                         meta_batch_size=FLAGS.meta_batch_size)
 
     model = make_omniglot_cnn_model(FLAGS.num_output_classes)
+
     optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
     if FLAGS.metamodel == "reptile":
         optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
-    model.compile(optimizer=optim,
-                  loss=custom_sparse_categorical_cross_entropy_loss, #tf.keras.losses.sparse_categorical_crossentropy,
-                  metrics=['sparse_categorical_accuracy'])
+    loss_function = custom_sparse_categorical_cross_entropy_loss
+    metrics = ['sparse_categorical_accuracy']
 
 elif FLAGS.dataset == "cifar100":
     metatrain_task_distribution, metaval_task_distribution, metatest_tasks_distribution = \
@@ -98,12 +98,12 @@ elif FLAGS.dataset == "cifar100":
                                                       meta_batch_size=FLAGS.meta_batch_size)
 
     model = make_omniglot_cnn_model(FLAGS.num_output_classes)
+
     optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
     if FLAGS.metamodel == "reptile":
         optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
-    model.compile(optimizer=optim,
-                  loss=tf.keras.losses.sparse_categorical_crossentropy,
-                  metrics=['sparse_categorical_accuracy'])
+    loss_function = custom_sparse_categorical_cross_entropy_loss  # tf.keras.losses.sparse_categorical_crossentropy
+    metrics = ['sparse_categorical_accuracy']
 
 elif FLAGS.dataset == "miniimagenet":
     metatrain_task_distribution, metaval_task_distribution, metatest_tasks_distribution = \
@@ -114,12 +114,12 @@ elif FLAGS.dataset == "miniimagenet":
                         meta_batch_size=FLAGS.meta_batch_size)
 
     model = make_miniimagenet_cnn_model(FLAGS.num_output_classes)
+
     optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
     if FLAGS.metamodel == "reptile":
         optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
-    model.compile(optimizer=optim,
-                  loss=custom_sparse_categorical_cross_entropy_loss, #tf.keras.losses.sparse_categorical_crossentropy,
-                  metrics=['sparse_categorical_accuracy'])
+    loss_function = custom_sparse_categorical_cross_entropy_loss
+    metrics = ['sparse_categorical_accuracy']
 
 elif FLAGS.dataset == "sinusoid":
     metatrain_task_distribution, metaval_task_distribution, metatest_tasks_distribution = \
@@ -136,9 +136,10 @@ elif FLAGS.dataset == "sinusoid":
                                                           meta_batch_size=FLAGS.meta_batch_size)
 
     model = make_sinusoid_model()
-    model.compile(optimizer=tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0),
-                  loss=tf.keras.losses.mean_squared_error,
-                  metrics=[])
+
+    optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
+    loss_function = tf.keras.losses.mean_squared_error
+    metrics = []
 
 else:
     print("ERROR: training task not recognized [", FLAGS.dataset, "]")
@@ -163,8 +164,18 @@ elif FLAGS.metamodel == 'imaml':
     # optimizer = tf.train.GradientDescentOptimizer(learning_rate=FLAGS.meta_lr)
     metalearner = iMAMLMetaLearner(model=model,
                                   optimizer=optimizer,
-                                  lambda_reg = 0.5,
+                                  lambda_reg = 2.0,
                                   name="iMAMLMetaLearner")
+
+
+print("(******", model.losses)
+
+# The model should be compiled AFTER being wrapped by a meta-learner, as the meta-learner may add special ops
+# or regularizers to the model.
+model.compile(optimizer=optim,
+              loss=loss_function,
+              metrics=['sparse_categorical_accuracy'])
+
 
 
 # Tensorflow Session and initialization (all variables, and meta-learner's initial state)

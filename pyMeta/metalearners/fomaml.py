@@ -88,6 +88,8 @@ class FOMAMLMetaLearner(GradBasedMetaLearner):
         """
         Method to be called before training on each meta-batch task
         """
+        super().task_begin(task=task)
+
         # Reset the model to the current weights initialization
         self.session.run(self._assign_op, feed_dict=dict(zip(self._placeholders, self.current_initial_parameters)))
 

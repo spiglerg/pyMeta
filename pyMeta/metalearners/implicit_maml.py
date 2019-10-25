@@ -12,10 +12,12 @@ WARNING2: l-BFGS was preferred to CG (contrary to the original iMAML paper) beca
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from copy import copy
+
+from scipy.sparse.linalg import cg, LinearOperator
 
 from pyMeta.core.meta_learner import GradBasedMetaLearner
 from pyMeta.core.task import TaskAsSequenceOfTasks
-
 
 
 
@@ -115,12 +117,36 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
             tensors.append(w_tensor)
         return tensors
 
-    def _gradients_for_task(self, t):
+
+    def _gradients_for_task_CG(self, t):
         """
         Hacky utility function to compute the iMAML meta-gradient for a task t.
         For the moment, this only works for Keras models with a single input.
 
         The gradient is approximated by optimization (Eq. (7) of the iMAML paper).
+
+        Optimization is performed using the Conjugate Gradient method.
+
+
+        Solve the problem:
+            argmin_w || w - (I+1/lambda*H)*g ||
+        where H is the Hessian matrix of a function (here, training loss for the inner-loop optimization, at the final
+        parameters) whose gradient is h, and g is a vector (here, the test loss for the inner-loop optimization, at the final parameters)
+
+        We use the Conjugate Gradient method and we compute Hessian-vector products using Pearlmutter's method
+        (Pearlmutter (1994)), Hv = D(h*v), where H=D(h) and D(v)=0.
+
+        Solving the above problem is equivalent to solving the linear system
+        (I+1/lambda*H) * w = g
+
+        We modify the CG method slightly to exploit the efficient Hessian-vector products, thus without ever explicitly
+        computing or storing the full matrix 'A':
+            A = (I+1/lambda*H)
+            b = g
+
+        Hv is a HvProduct object that when called with a vector as argument (of the correct size), it returns the correct
+        Hessian-vector product.
+
         """
         test_x, test_y = t.get_test_set()
         train_x, train_y = t.get_train_set() if len(test_y)>len(t.train_indices) else t.sample_batch(len(test_y))
@@ -128,100 +154,67 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
 
         # 1) Build the computational graph to compute the Hessian-vector product (\nabla^2_\phi \hat{L}_i(\phi_i) * w)
         #    + build the computational graph to compute the test-set gradients (\nabla_\phi L_i(\phi_i))
-        if self.target_placeholder is None:
+        if not hasattr(self, '_CG_graph_initialized'):
             # Only build the graph on the first time this function is called
             # `model' is run through self.model.inputs[0] to self.model.output
+
+            self._CG_graph_initialized = True
 
             self.target_placeholder = tf.placeholder(tf.float32, [None, ] + list(test_y.shape[1:]),
                                                      name="imaml_target_test")
             self.loss = tf.reduce_mean(self.model.loss(self.target_placeholder, self.model.output))
             self.gradients_ = tf.gradients(self.loss, self.model.trainable_variables)
 
-            # self.gradients_ can now be used to compute both the test-set gradients and the (train-set!) Hessian-vector products
-            self.Hw = None
-            self.G = [tf.placeholder(v.dtype.base_dtype, shape=v.get_shape())
-                                  for v in self.model.trainable_variables]
-
-            # 2) Evaluate the value of the function to minimize and its derivative
-            def func(x):
-                # We wish to minimize the following function (Eq. (7) of iMAML paper)
-                # x^T * ( x + 1/lambda * [Hessian-vector product between
-                #   "hessian of TRAIN loss at phi_i" and "x"] ) - x^T * "gradient of TEST loss at phi_i"
-                # = x^T * (x + 1/lambda * Hw) - x^T * G
-                # Where Hw is obtained using "self._hessian_vector_prod", setting "self._placeholders" to
-                # the current value of "x", and
-                #       {self.model.inputs[0]: TRAIN_batch_x, self.target_placeholder: TRAIN_batch_y})
-                # in order to compute gradients on the training loss
-                # Where G is computed by running (once; the value is constant wrt to x!) self._gradients_
-                # using {self.model.inputs[0]: TESt_batch_x, self.target_placeholder: TEST_batch_y})
-                #     G is computed before running the optimization process on func(), and is stored
-                #     in self.last_test_gradients
-
-                # convert x from a single vector to a list of tensors, x_vars
-                x_vars = self._tf_vector_to_list_of_tensors(self.model.trainable_variables, x)
-
-                if self.Hw is None:
-                    # Compute the Hessian-vector product
-                    self._grad_dot_vector = tf.add_n( [tf.reduce_sum(self.gradients_[i] * x_vars[i]) for i in range(len(x_vars))] )
-                    self.Hw = tf.gradients(self._grad_dot_vector, self.model.trainable_variables)
-
-                # Value = wT * (w + 1/lambda * Hw - G)
-                value = tf.add_n( [tf.reduce_sum(x_vars[i] * (x_vars[i] + 1.0/self.lambda_reg*self.Hw[i] - self.G[i]) )
-                                    for i in range(len(self.model.trainable_variables))] )
-
-                # Gradient = 2*w + 2/lambda*Hw - G
-                gradients = [2*x_vars[i] + 2.0/self.lambda_reg*self.Hw[i] - self.G[i]
-                             for i in range(len(self.model.trainable_variables))]
-
-                # linearize gradients into a single vector!
-                gradient = self._tf_list_of_tensors_to_vector(gradients)
-
-                return value, gradient
-
-            self._optim_func = func
-
-            # 3) Approximate the gradient with a fixed number of optimization steps
-            n = 0
-            for w in self.model.trainable_variables:
-                shape = w.get_shape()
-                w_size = 1
-                for dim in shape:
-                    w_size *= dim.value
-                n += w_size
-            #"""
-            self.x_op = tfp.optimizer.lbfgs_minimize(
-                self._optim_func,
-                tf.zeros((n,), dtype=tf.float32),
-                num_correction_pairs=10,
-                tolerance=1e-08,
-                max_iterations=self.n_iters_optimizer,
-                parallel_iterations=1,
-            )
-            #"""
-
-            self.result_vector_placeholder = tf.placeholder(dtype=tf.float32, shape=(n,))
-            self.result_to_list_of_tensors = self._tf_vector_to_list_of_tensors(
-                                                        self.model.trainable_variables,
-                                                        self.result_vector_placeholder)
+            # Compute the Hessian-vector product (current constant vector should be passed via self._placeholders)
+            self._grad_dot_vector = tf.add_n( [tf.reduce_sum(self.gradients_[i] * self._placeholders[i]) for i in range(len(self._placeholders))] )
+            self.Hv = tf.gradients(self._grad_dot_vector, self.model.trainable_variables)
 
 
         # Perform optimization
 
         # Only need to evaluate this once, as it is constant during the optimization process
-        self.last_test_gradients = self.session.run(self.gradients_,
-                                                    {self.model.inputs[0]: test_x, self.target_placeholder: test_y})
+        test_gradients = self.session.run(self.gradients_,
+                                          {self.model.inputs[0]: test_x, self.target_placeholder: test_y})
 
-        args = dict(zip(self.G, self.last_test_gradients))
-        args[self.model.inputs[0]] = train_x
-        args[self.target_placeholder] = train_y
-        result = self.session.run(self.x_op, args)
-        #print(result.num_iterations)
-        #print(result.objective_value)
-        #print(np.sum(np.sum(result.objective_gradient)))
+        # Conjugate gradient
+        # 0-iterations of CG should return the FOMAML gradient + we expect the solution to be near there
+        x = [copy(g) for g in test_gradients] #test_gradients[:] #[np.ones(var.shape) for var in self.current_initial_parameters]
+        #x = [np.zeros(var.shape) for var in self.current_initial_parameters]
 
-        approx_metagradient = self.session.run(self.result_to_list_of_tensors, {self.result_vector_placeholder:result.position})
+        b = test_gradients
 
-        return approx_metagradient
+
+        def Av(v):
+            args = dict(zip(self._placeholders, v))
+            args[self.model.inputs[0]] = train_x
+            args[self.target_placeholder] = train_y
+            Hvp = self.session.run(self.Hv, args)
+            return [v[i] + 1.0/self.lambda_reg * Hvp[i] for i in range(len(v))]
+
+        Ax = Av(x)
+
+        r = [b[i] - Ax[i] for i in range(len(x))]
+        p = r[:]
+        for i in range(self.n_iters_optimizer):
+            Ap = Av(p)
+
+            #alpha = np.sum(r*r) / np.sum(p*Ap)
+            alpha = np.sum([ np.sum(r[i]*r[i]) for i in range(len(x)) ]) / np.sum([ np.sum(p[i]*Ap[i]) for i in range(len(x)) ])
+
+            x = [x[i] + alpha*p[i] for i in range(len(x))]
+            rnew = [r[i] - alpha*Ap[i] for i in range(len(x))]
+
+            # if r is small enough, exit loop
+            #if np.sqrt(np.sum(rnew*rnew)) < 1e-10:
+            #    break
+
+            #beta = np.sum(rnew*rnew) / np.sum(r*r)
+            beta = np.sum([ np.sum(rnew[i]*rnew[i]) for i in range(len(x)) ]) / np.sum([ np.sum(r[i]*r[i]) for i in range(len(x)) ])
+
+            p = [rnew[i] + beta*p[i] for i in range(len(x))]
+            r = rnew
+
+        return x
 
     def initialize(self, session):
         """
@@ -253,9 +246,11 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
 
         if isinstance(task, TaskAsSequenceOfTasks):
             # Default: evaluate performance on the last task only
-            ret_grads = self._gradients_for_task(task.get_task_by_index(-1))
+            #ret_grads = self._gradients_for_task(task.get_task_by_index(-1))
+            ret_grads = self._gradients_for_task_CG(task.get_task_by_index(-1))
         else:
-            ret_grads = self._gradients_for_task(task)
+            #ret_grads = self._gradients_for_task(task)
+            ret_grads = self._gradients_for_task_CG(task)
 
         return ret_grads
 
