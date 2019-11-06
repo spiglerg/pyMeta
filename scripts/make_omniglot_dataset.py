@@ -1,6 +1,3 @@
-import tensorflow as tf
-import sonnet as snt
-
 import numpy as np
 
 import matplotlib.pyplot as plt

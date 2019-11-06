@@ -87,7 +87,7 @@ def create_miniimagenet_task_distribution(path_to_pkl,
     # TODO: NOTE: HACK -- validation and test tasks use a fixed number of test-set samples, instead of the supplied
     # ones. This is because in MAML/FOMAML the test set is used to compute the meta-gradient, and a small number of
     # samples is used (in the philosophy of few-shot learning, where only few samples are available).
-    # However, we wish to use a few more test-samples to better estimate the accuracy of the model on the validation
+    # However, in this case we wish to use a few more test-samples to better estimate the accuracy of the model on the validation
     # and test tasks!
     num_test_samples_per_class = 50
     validation_tasks_list = [ClassificationTask(miniimagenet_valX,

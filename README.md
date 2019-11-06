@@ -30,9 +30,9 @@ Acquire data using the 'fetch_data.sh' script from https://github.com/openai/sup
 ## Usage
 
 Broad requirements:
-+ tested with Python 3.6 and Tensorflow 1.14
++ Tested with Python 3.6 and Tensorflow 2.0
++ https://github.com/abseil/abseil-py
 + For the preliminary distributed implementation: mpi4py
-+ For iMAML: tensorflow-probability
 
 For 5-way, 5-shot training on the Omniglot and MinImageNet datasets, you can try the following configurations. For FOMAML:
 
@@ -41,19 +41,19 @@ Sinusoid:
 python3 example_metatrain.py --dataset="sinusoid" --metamodel="fomaml" \
     --num_train_samples_per_class=10 --num_test_samples_per_class=100 --num_inner_training_iterations=5 --inner_batch_size=10 \
     --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 \
-    --model_save_filename="saved/model.h5" --num_outer_metatraining_iterations=10000
+    --model_save_filename="saved/model" --num_outer_metatraining_iterations=10000
 
 Omniglot:
 python3 example_metatrain.py --dataset="omniglot" --metamodel="fomaml" \
     --num_output_classes=5 --num_train_samples_per_class=5 --num_test_samples_per_class=15 --num_inner_training_iterations=5 --inner_batch_size=-1 \
     --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 \
-    --model_save_filename="saved/model.h5" --num_outer_metatraining_iterations=30000
+    --model_save_filename="saved/model" --num_outer_metatraining_iterations=30000
 
 Mini-ImageNet:
 python3 example_metatrain.py --dataset="miniimagenet" --metamodel="fomaml" \
     --num_output_classes=5 --num_train_samples_per_class=5 --num_test_samples_per_class=15 --num_inner_training_iterations=5 --inner_batch_size=-1 \
     --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 \
-    --model_save_filename="saved/model.h5" --num_outer_metatraining_iterations=30000
+    --model_save_filename="saved/model" --num_outer_metatraining_iterations=30000
 ```
 
 For Reptile:
@@ -62,25 +62,28 @@ Sinusoid:
 python3 example_metatrain.py --dataset="sinusoid" --metamodel="reptile" \
     --num_train_samples_per_class=10 --num_test_samples_per_class=100 --num_inner_training_iterations=5 --inner_batch_size=10 \
     --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 \
-    --model_save_filename="saved/model.h5" --num_outer_metatraining_iterations=10000
+    --model_save_filename="saved/model" --num_outer_metatraining_iterations=10000
 
 Omniglot:
 python3 example_metatrain.py --dataset="omniglot" --metamodel="reptile" \
     --num_output_classes=5 --num_train_samples_per_class=10 --num_test_samples_per_class=10 --num_inner_training_iterations=5 --inner_batch_size=-1 \
     --meta_lr=0.1 --inner_lr=0.001 --meta_batch_size=5 --num_validation_batches=10 \
-    --model_save_filename="saved/model.h5" --num_outer_metatraining_iterations=30000
+    --model_save_filename="saved/model" --num_outer_metatraining_iterations=30000
 
 Mini-ImageNet:
 python3 example_metatrain.py --dataset="miniimagenet" --metamodel="reptile" \
     --num_output_classes=5 --num_train_samples_per_class=15 --num_test_samples_per_class=15 --num_inner_training_iterations=8 --inner_batch_size=-1 \
     --meta_lr=0.1 --inner_lr=0.001 --meta_batch_size=5 --num_validation_batches=10 \
-    --model_save_filename="saved/model.h5" --num_outer_metatraining_iterations=30000
+    --model_save_filename="saved/model" --num_outer_metatraining_iterations=30000
 ```
 
 For i-MAML:
 ```
-Omniglot:
-python3 example_metatrain.py --dataset="omniglot" --metamodel="imaml" --num_output_classes=5 --num_train_samples_per_class=5 --num_test_samples_per_class=15 --num_inner_training_iterations=20 --inner_batch_size=-1 --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 --model_save_filename="saved/model.h5" --num_outer_metatraining_iterations=30000
+Omniglot (5-way, 5-shot):
+python3 example_metatrain.py --dataset="omniglot" --metamodel="imaml" --num_output_classes=5 --num_train_samples_per_class=1 --num_test_samples_per_class=15 --num_inner_training_iterations=20 --imaml_lambda_reg=2.0 --imaml_cg_steps=5 --inner_batch_size=-1 --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 --model_save_filename="saved/model" --num_outer_metatraining_iterations=30000
+
+MiniImageNet (5-way, 1-shot):
+python3 example_metatrain.py --dataset="miniimagenet" --metamodel="imaml" --num_output_classes=5 --num_train_samples_per_class=1 --num_test_samples_per_class=15 --num_inner_training_iterations=10 --imaml_lambda_reg=0.5 --imaml_cg_steps=5 --inner_batch_size=-1 --meta_lr=0.001 --inner_lr=0.01 --meta_batch_size=5 --num_validation_batches=10 --model_save_filename="saved/model" --num_outer_metatraining_iterations=30000
 ```
 
 

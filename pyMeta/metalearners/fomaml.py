@@ -12,15 +12,26 @@ from pyMeta.core.meta_learner import GradBasedMetaLearner
 from pyMeta.core.task import TaskAsSequenceOfTasks
 
 
+
+
+
+@tf.function
+def grads_on_batch(model, batch_X, batch_y):
+    with tf.GradientTape() as tape:
+        loss = tf.reduce_mean(model.loss(batch_y, model(batch_X, training=True)))
+    grads = tape.gradient(loss, model.trainable_variables)
+    return grads
+
 class FOMAMLMetaLearner(GradBasedMetaLearner):
-    def __init__(self, model, optimizer=tf.train.AdamOptimizer(learning_rate=0.001), name="FOMAMLMetaLearner"):
+    def __init__(self, model, optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), name="FOMAMLMetaLearner"):
         """
-        In general, meta-learners objects should be created before tf.global_variables_initializer() is called, in
-        case variables have to be created.
+        In general, meta-learners objects should be created before the tf.keras.Model that they wrap is compiled,
+        in case losses or regularizers need to be added.
 
         This meta-learner should be used as follows:
-        + Instantiate object (before calling tf.global_variables_initializer() )
-        + Initialize object, after tf.global_variables_initializer()
+        + Instantiate object
+        [Compile the wrapped model]
+        + Initialize object
             metalearner.initialize()
         + For each meta-learning iteration:
             + Go through each task in the meta-batch
@@ -40,22 +51,6 @@ class FOMAMLMetaLearner(GradBasedMetaLearner):
         self.model = model
         self.optimizer = optimizer
 
-        self.target_placeholder = None
-
-        # Update op to change the current initial parameters (weights initialization)
-        self._placeholders = [tf.placeholder(v.dtype.base_dtype, shape=v.get_shape())
-                              for v in self.model.trainable_variables]
-        assigns = [tf.assign(v, p) for v, p in zip(self.model.trainable_variables, self._placeholders)]
-        self._assign_op = tf.group(*assigns)
-
-        self._gradients_placeholders = [tf.placeholder(v.dtype.base_dtype, shape=v.get_shape())
-                                        for v in self.model.trainable_variables]
-        self.apply_metagradients = self.optimizer.apply_gradients(zip(self._gradients_placeholders,
-                                                                      self.model.trainable_variables))
-        # clipped_grads = [(tf.clip_by_norm(grad, 10), var) for grad, var in zip(self._gradients_placeholders,
-        #                                                                        self.model.trainable_variables)]
-        # self.apply_metagradients = self.optimizer.apply_gradients(clipped_grads)
-
     def _gradients_for_task(self, t):
         """
         Hacky utility function to compute gradients for a given batch of data on a Keras model.
@@ -64,25 +59,16 @@ class FOMAMLMetaLearner(GradBasedMetaLearner):
         # TODO: this should work in general, but it will require adjustments for RL tasks!
         batch_x, batch_y = t.get_test_set()
 
-        if self.target_placeholder is None:
-            # Only build the graph on the first time this function is called
-            # `model' is run through self.model.inputs[0] to self.model.output
-            self.target_placeholder = tf.placeholder(tf.float32, [None, ] + list(batch_y.shape[1:]),
-                                                     name="fomaml_placeholder")
+        gradients = grads_on_batch(self.model, batch_x, batch_y)
+        gradients = [g.numpy() for g in gradients]
 
-            self.loss = tf.reduce_mean(self.model.loss(self.target_placeholder, self.model.output))
-            self.gradients_ = tf.gradients(self.loss, self.model.trainable_variables)
-
-        gradients = self.session.run(self.gradients_,
-                                     {self.model.inputs[0]: batch_x, self.target_placeholder: batch_y})
         return gradients
 
-    def initialize(self, session):
+    def initialize(self):
         """
-        This method should be called after tf.global_variables_initializer().
+        This method should be called after the wrapped model is compiled.
         """
-        self.session = session
-        self.current_initial_parameters = self.session.run(self.model.trainable_variables)
+        self.current_initial_parameters = [v.numpy() for v in self.model.trainable_variables]
 
     def task_begin(self, task=None, **kwargs):
         """
@@ -91,7 +77,8 @@ class FOMAMLMetaLearner(GradBasedMetaLearner):
         super().task_begin(task=task)
 
         # Reset the model to the current weights initialization
-        self.session.run(self._assign_op, feed_dict=dict(zip(self._placeholders, self.current_initial_parameters)))
+        for i in range(len(self.current_initial_parameters)):
+            self.model.trainable_variables[i].assign( self.current_initial_parameters[i] )
 
     def task_end(self, task=None, **kwargs):
         """
@@ -122,8 +109,11 @@ class FOMAMLMetaLearner(GradBasedMetaLearner):
         for grads in zip(*list_of_final_gradients):
             avg_final_grads.append(np.mean(grads, axis=0))
 
-        # Apply gradients to the initial parameters
-        self.session.run(self._assign_op, feed_dict=dict(zip(self._placeholders, self.current_initial_parameters)))
-        self.session.run(self.apply_metagradients, feed_dict=dict(zip(self._gradients_placeholders, avg_final_grads)))
+        # Apply gradients to the *initial parameters*
+        for i in range(len(self.current_initial_parameters)):
+            self.model.trainable_variables[i].assign( self.current_initial_parameters[i] )
 
-        self.current_initial_parameters = self.session.run(self.model.trainable_variables)
+        self.optimizer.apply_gradients(zip(avg_final_grads, self.model.trainable_variables))
+
+        # Set the new initial parameters
+        self.current_initial_parameters = [v.numpy() for v in self.model.trainable_variables]

@@ -11,12 +11,13 @@ from pyMeta.core.task import Task
 
 class GradBasedMetaLearner:
     """
-    In general, meta-learners objects should be created before tf.global_variables_initializer() is called, in
-    case variables have to be created.
+    In general, meta-learners objects should be created before the tf.keras.Model that they wrap is compiled,
+    in case losses or regularizers need to be added.
 
     This meta-learner should be used as follows:
-    + Instantiate object (before calling tf.global_variables_initializer() )
-    + Initialize object, after tf.global_variables_initializer()
+    + Instantiate object
+    [Compile the wrapped model]
+    + Initialize object
         metalearner.initialize()
     + For each meta-learning iteration:
         + Go through each task in the meta-batch
@@ -36,13 +37,13 @@ class GradBasedMetaLearner:
 
     def initialize(self, session):
         """
-        This method should be called after tf.global_variables_initializer().
+        This method should be called after the wrapped model is compiled.
         """
         pass
 
     def task_begin(self, task=None, **kwargs):
         """
-        Method to be called before training on each meta-batch task
+        Method to be called before training on each meta-batch task.
         """
         if task is not None and not isinstance(task, Task):
             print("ERROR: task_begin requires a `Task' object as argument")

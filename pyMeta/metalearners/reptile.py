@@ -11,14 +11,15 @@ from pyMeta.core.meta_learner import GradBasedMetaLearner
 
 
 class ReptileMetaLearner(GradBasedMetaLearner):
-    def __init__(self, model, optimizer=tf.train.AdamOptimizer(learning_rate=0.001), name="ReptileMetaLearner"):
+    def __init__(self, model, optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), name="ReptileMetaLearner"):
         """
-        In general, meta-learners objects should be created before tf.global_variables_initializer() is called, in
-        case variables have to be created.
+        In general, meta-learners objects should be created before the tf.keras.Model that they wrap is compiled,
+        in case losses or regularizers need to be added.
 
         This meta-learner should be used as follows:
-        + Instantiate object (before calling tf.global_variables_initializer() )
-        + Initialize object, after tf.global_variables_initializer()
+        + Instantiate object
+        [Compile the wrapped model]
+        + Initialize object
             metalearner.initialize()
         + For each meta-learning iteration:
             + Go through each task in the meta-batch
@@ -38,28 +39,11 @@ class ReptileMetaLearner(GradBasedMetaLearner):
         self.model = model
         self.optimizer = optimizer
 
-        # Update op to change the current initial parameters (weights initialization)
-        # From OpenAI Reptile implementation
-        self._placeholders = [tf.placeholder(v.dtype.base_dtype, shape=v.get_shape())
-                              for v in self.model.trainable_variables]
-        assigns = [tf.assign(v, p) for v, p in zip(self.model.trainable_variables, self._placeholders)]
-        self._assign_op = tf.group(*assigns)
-
-        self._gradients_placeholders = [tf.placeholder(v.dtype.base_dtype, shape=v.get_shape())
-                                        for v in self.model.trainable_variables]
-        self.apply_metagradients = self.optimizer.apply_gradients(zip(self._gradients_placeholders,
-                                                                      self.model.trainable_variables))
-        # clipped_grads = [(tf.clip_by_norm(grad, 10), var) for grad, var in zip(self._gradients_placeholders,
-        #                                                                        self.model.trainable_variables)]
-        # self.apply_metagradients = self.optimizer.apply_gradients(clipped_grads)
-
-
-    def initialize(self, session):
+    def initialize(self):
         """
-        This method should be called after tf.global_variables_initializer().
+        This method should be called after the wrapped model is compiled.
         """
-        self.session = session
-        self.current_initial_parameters = self.session.run(self.model.trainable_variables)
+        self.current_initial_parameters = [v.numpy() for v in self.model.trainable_variables]
 
     def task_begin(self, task=None, **kwargs):
         """
@@ -68,7 +52,8 @@ class ReptileMetaLearner(GradBasedMetaLearner):
         super().task_begin(task=task)
 
         # Reset the model to the current weights initialization
-        self.session.run(self._assign_op, feed_dict=dict(zip(self._placeholders, self.current_initial_parameters)))
+        for i in range(len(self.current_initial_parameters)):
+            self.model.trainable_variables[i].assign( self.current_initial_parameters[i] )
 
     def task_end(self, task=None, **kwargs):
         """
@@ -76,7 +61,7 @@ class ReptileMetaLearner(GradBasedMetaLearner):
         meta-learner to use for the meta-updates.
         """
         # Return the final weights for later use in the `update' method
-        new_vars = self.session.run(self.model.trainable_variables)
+        new_vars = [v.numpy() for v in self.model.trainable_variables]
         return new_vars
 
     def update(self, metabatch_results, **kwargs):
@@ -103,8 +88,12 @@ class ReptileMetaLearner(GradBasedMetaLearner):
         for cur, new in zip(self.current_initial_parameters, avg_final):
             grads.append(cur-new)
 
-        # Apply gradients to the initial parameters
-        self.session.run(self._assign_op, feed_dict=dict(zip(self._placeholders, self.current_initial_parameters)))
-        self.session.run(self.apply_metagradients, feed_dict=dict(zip(self._gradients_placeholders, grads)))
+        # Apply gradients to the *initial parameters*
+        for i in range(len(self.current_initial_parameters)):
+            self.model.trainable_variables[i].assign( self.current_initial_parameters[i] )
 
-        self.current_initial_parameters = self.session.run(self.model.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
+
+        # Set the new initial parameters
+        self.current_initial_parameters = [v.numpy() for v in self.model.trainable_variables]
+

@@ -29,6 +29,23 @@ class Task:
 
 
 
+
+@tf.function
+def train_on_batch(model, batch_X, batch_y):
+    # TODO: note: because of tf.function, it's likely that model.losses will retain the very first value
+    # it had before the first call to this function, and subsequent modifications may not be tracked.
+    # This shouldn't be a problem, as this function is used only after model definition, compiling and wrapping
+    # by meta-learner objects, but it's something to keep in mind.
+    with tf.GradientTape() as tape:
+        aux_loss = 0.0
+        if len(model.losses) > 0:
+            aux_loss = tf.add_n(model.losses)
+        loss = tf.reduce_mean(model.loss(batch_y, model(batch_X, training=True))) + aux_loss
+    grads = tape.gradient(loss, model.trainable_variables)
+    model.optimizer.apply_gradients(zip(grads, model.trainable_variables))
+
+    return loss
+
 class ClassificationTask(Task):
     def __init__(self, X, y, num_training_samples_per_class=-1, num_test_samples_per_class=-1, num_training_classes=-1,
                  split_train_test=0.8):
@@ -57,27 +74,28 @@ class ClassificationTask(Task):
 
         self._deepcopy_avoid_copying = ['X', 'y']
 
-        self.split_train_test = split_train_test
-        if self.split_train_test < 0:
-            self.split_train_test = num_training_samples_per_class / (num_training_samples_per_class + num_test_samples_per_class)
-
-        self.num_training_samples_per_class = num_training_samples_per_class
-        if self.num_training_samples_per_class >= len(self.y)*self.split_train_test:
-            self.num_training_samples_per_class = -1
-            print("WARNING: more training samples per class than available training instances were requested. \
-                   All the available instances (", int(len(self.y)*self.split_train_test), ") will be used.")
-
-        self.num_test_samples_per_class = num_test_samples_per_class
-        if self.num_test_samples_per_class >= len(self.y)*(1-self.split_train_test):
-            self.num_test_samples_per_class = -1
-            print("WARNING: more test samples per class than available test instances were requested. \
-                   All the available instances (", int(len(self.y)*(1-self.split_train_test)), ") will be used.")
-
         self.num_training_classes = num_training_classes
         if self.num_training_classes >= len(set(self.y)):
             self.num_training_classes = -1
             print("WARNING: more training classes than available in the dataset were requested. \
                    All the available classes (", len(self.y), ") will be used.")
+
+        self.split_train_test = split_train_test
+        if self.split_train_test < 0:
+            self.split_train_test = num_training_samples_per_class / (num_training_samples_per_class + num_test_samples_per_class)
+
+        num_classes = self.num_training_classes if self.num_training_classes>0 else len(set(self.y))
+        self.num_training_samples_per_class = num_training_samples_per_class
+        if self.num_training_samples_per_class*num_classes >= len(self.y)*self.split_train_test:
+            self.num_training_samples_per_class = -1
+            print("WARNING: more training samples per class than available training instances were requested. \
+                   All the available instances (", int(len(self.y)*self.split_train_test), ") will be used.")
+
+        self.num_test_samples_per_class = num_test_samples_per_class
+        if self.num_test_samples_per_class*num_classes >= len(self.y)*(1-self.split_train_test):
+            self.num_test_samples_per_class = -1
+            print("WARNING: more test samples per class than available test instances were requested. \
+                   All the available instances (", int(len(self.y)*(1-self.split_train_test)), ") will be used.")
 
         self.reset()
 
@@ -139,10 +157,24 @@ class ClassificationTask(Task):
         with a minibatch of size `batch_size'.
         `model' must be a Keras model. It is a bit of a limitation, but it simplifies handling of the code
         quite significantly, so we opted for this solution, for the moment.
+
+        This is a utility method, but in general users should define their own function, as they may have
+        different needs that are not met here (e.g., using regularizers)
         """
+
         for iteration in range(num_iterations):
             batch_X, batch_y = self.sample_batch(batch_size)
-            loss = model.train_on_batch(batch_X, batch_y)
+
+            # TFv1 : the following does not work in TFv2 if the model is defined with tf.function (e.g., w/ Keras'
+            # functional API)
+            ## loss = model.train_on_batch(tf.constant(batch_X), tf.constant(batch_y))
+
+            # TFv2: optimized training step using @tf.function. The function needs to be defined outside this object
+            # because task objects are created in large numbers, and it would require re-compiling the graph every
+            # time.
+            loss = train_on_batch(model, tf.constant(batch_X), tf.constant(batch_y))
+
+            #print(model.metrics[0](batch_y, model(batch_X)))
 
         # Return the value of the loss function at the last minibatch observed.
         # TODO: perhaps it may be useful to also return the sum/mean loss over the training iterations.
@@ -157,11 +189,25 @@ class ClassificationTask(Task):
             test_X, test_y = self.get_train_set()
         else:
             test_X, test_y = self.get_test_set()
-        out = model.evaluate(test_X, test_y, batch_size=1000, verbose=0)
 
-        if not isinstance(out, list):
-            out = [out]
-        out_dict = dict(zip(model.metrics_names, out))
+        # Only valid with TFv1? (in this case, with the model defined using Keras function APIs
+        #out = model.evaluate(test_X, test_y, batch_size=1000, verbose=0)
+        #if not isinstance(out, list):
+        #    out = [out]
+        #out_dict = dict(zip(model.metrics_names, out))
+
+        # TODO: wrap in a tf.function?
+        # TODO: also: for... minibatch, run this code, which corresponds to .update_state
+        out_dict = {}
+        if model.metrics_names[0] == 'loss':
+            mets = [lambda true,pred: tf.reduce_mean(model.loss(true,pred)) + (tf.add_n(model.losses) if len(model.losses)>0 else 0)] + model.metrics
+        for i in range(len(model.metrics_names)):
+            val = mets[i](test_y, model(test_X))
+            if model.metrics_names[i] != 'loss':
+                mets[i].reset_states()
+
+            out_dict[model.metrics_names[i]] = val
+
         return out_dict
 
     def sample_batch(self, batch_size):
@@ -305,7 +351,7 @@ class TaskAsSequenceOfTasks(Task):
                 ret_info[key+"_"+str(task_i)] = ret[key]
 
             if return_weights_after_each_task:
-                ret_info["weights_"+str(task_i)] = tf.keras.backend.get_session().run(model.trainable_variables)
+                ret_info["weights_"+str(task_i)] = [v.numpy() for v in model.trainable_variables]
 
             # Callbacks for continual-learning algorithms
             if hasattr(model, 'run_after_task'):

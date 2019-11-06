@@ -11,7 +11,7 @@ from pyMeta.metalearners.fomaml import FOMAMLMetaLearner
 
 
 class SeqFOMAMLMetaLearner(FOMAMLMetaLearner):
-    def __init__(self, model, optimizer=tf.train.AdamOptimizer(learning_rate=0.001), name="SeqFOMAMLMetaLearner"):
+    def __init__(self, model, optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), name="SeqFOMAMLMetaLearner"):
         """
         Extension of FOMAML to learn to avoid catastrophic forgetting by training on sequences of tasks.
         The base gradient is the expected final (test) gradient, averaged across tasks in a sequence. Auxliary
@@ -58,16 +58,18 @@ class SeqFOMAMLMetaLearner(FOMAMLMetaLearner):
 
                 for i in range(task.get_sequence_length()):
                     # Compute loss of task `i' at its previous final weights
-                    self.session.run(self._assign_op, feed_dict=dict(zip(self._placeholders,
-                                                                         results['weights_'+str(i)])))
+                    for k in range(len(self.current_initial_parameters)):
+                        self.model.trainable_variables[k].assign( results['weights_'+str(i)][k] )
+
                     aux_grads.append(self._gradients_for_task(task.get_task_by_index(i)))
 
             elif kwargs['seq_fomaml_loss'] == 'sampled_loss_after_each_task':
                 # Tests on a randomly sampled previous task, after each task: adds extra term L_{j ~ U([1,i])}(phi^i)
 
                 for i in range(0, task.get_sequence_length()):
-                    self.session.run(self._assign_op, feed_dict=dict(zip(self._placeholders,
-                                                                         results['weights_'+str(i)])))
+                    for k in range(len(self.current_initial_parameters)):
+                        self.model.trainable_variables[k].assign( results['weights_'+str(i)][k] )
+
                     j = np.random.randint(0, i+1)
                     aux_grads.append(self._gradients_for_task(task.get_task_by_index(j)))
 
@@ -78,9 +80,10 @@ class SeqFOMAMLMetaLearner(FOMAMLMetaLearner):
                 # No need to compute the losses at the end of training t=task.get_sequence_length()-1,
                 # as those are collected above
                 for i in range(task.get_sequence_length()-1):
+                    for k in range(len(self.current_initial_parameters)):
+                        self.model.trainable_variables[k].assign( results['weights_'+str(i)][k] )
+
                     for j in range(i+1):
-                        self.session.run(self._assign_op, feed_dict=dict(zip(self._placeholders,
-                                                                             results['weights_'+str(i)])))
                         newg = self._gradients_for_task(task.get_task_by_index(j))
                         for k in range(len(newg)):
                             newg[k] /= (task.get_sequence_length()+1-j)

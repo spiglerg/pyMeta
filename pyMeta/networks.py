@@ -13,6 +13,9 @@ def make_omniglot_cnn_model(num_output_classes):
         if i == 0:
             model.add(Conv2D(filters=64, kernel_size=3, strides=1, padding="same", activation=None,
                              input_shape=[28, 28, 1]))
+
+
+
         else:
             model.add(Conv2D(filters=64, kernel_size=3, strides=1, padding="same", activation=None))
 

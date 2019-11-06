@@ -79,6 +79,17 @@ def create_cifar100_task_distribution(num_training_samples_per_class=-1,
         c_indices = np.where(all_y == c)[0]
         meta_test_indices.extend(c_indices)
 
+    # TODO: subtract mean of train images (over axis=0) from both trainX and testX
+
+    """
+    from copy import copy
+    import cv2
+    old_x = copy(all_x)
+    all_x = np.ones([old_x.shape[0], 224, 224, 3], dtype=np.float32)
+    for i in range(old_x.shape[0]):
+        all_x[i,:,:,:] = cv2.resize(old_x[i,:,:,:], (224, 224))
+    """
+
     cifar100_trainX = all_x[meta_train_indices, :].astype(np.float32) / 255.0
     cifar100_trainY = np.squeeze(all_y[meta_train_indices]).astype(np.int64)
     cifar100_testX = all_x[meta_test_indices, :].astype(np.float32) / 255.0
