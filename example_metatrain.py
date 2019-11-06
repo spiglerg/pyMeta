@@ -173,6 +173,7 @@ def main(argv):
                                         name="FOMAMLMetaLearner")
     elif FLAGS.metamodel == 'imaml':
         optimizer = tf.keras.optimizers.Adam(learning_rate=FLAGS.meta_lr)  # , beta_1=0.0)
+        #optimizer = tf.keras.optimizers.SGD(learning_rate=FLAGS.meta_lr)
         metalearner = iMAMLMetaLearner(model=model,
                                       optimizer=optimizer,
                                       lambda_reg = FLAGS.imaml_lambda_reg, #0.5, #2.0,
@@ -193,52 +194,6 @@ def main(argv):
 
 
     metalearner.initialize()
-
-
-
-
-
-
-    task = metatrain_task_distribution.sample_batch()[0]
-
-    #model.add_loss(lambda:1*tf.add_n([tf.reduce_sum(tf.square(v)) for v in model.trainable_variables]))
-
-    """
-    st = time.time()
-    for iteration in range(FLAGS.num_inner_training_iterations):
-        batch_X, batch_y = task.sample_batch(FLAGS.inner_batch_size)
-
-        print(model.losses)
-
-        with tf.GradientTape() as tape:
-            loss = tf.reduce_mean(model.loss(batch_y, model(batch_X))) #+ tf.add_n(model.losses)
-        grads = tape.gradient(loss, model.trainable_variables)
-        model.optimizer.apply_gradients(zip(grads, model.trainable_variables))
-
-        print(model.metrics[0](batch_y, model(batch_X)))
-
-    en = time.time()
-    print(loss, en-st)
-    #"""
-
-    """
-    st = time.time()
-    #loss = task.fit_n_iterations(model, FLAGS.num_inner_training_iterations, FLAGS.inner_batch_size)
-
-    for iteration in range(FLAGS.num_inner_training_iterations):
-        batch_X, batch_y = task.sample_batch(FLAGS.inner_batch_size)
-        loss = model.train_on_batch(batch_X, batch_y)
-
-    en = time.time()
-    print(loss, en-st)
-    #"""
-
-
-
-
-
-
-
 
 
 
