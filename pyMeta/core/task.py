@@ -10,6 +10,8 @@ Specification of the base Task interfaces.
   is designed to be a starting point for continual learning research.
 """
 
+import sys
+
 import numpy as np
 import tensorflow as tf
 
@@ -68,6 +70,8 @@ class ClassificationTask(Task):
                 On each reset, the instances in the dataset are first split into a train and test set. From those,
                 num_training_samples_per_class and num_test_samples_per_class are sampled.
                 If `split_train_test' < 0, then the split is automatically set to #train_samples / (#train_samples + #test_samples)
+
+            Note: HACKY: a field 'label_offset' is always defined. It can be overridden after the object has been created. The purpose is to add a fixed starting offset for all labels, especially for use in multi_headed setups.
         """
         self.X = X
         self.y = y
@@ -76,6 +80,7 @@ class ClassificationTask(Task):
 
         self.num_training_classes = num_training_classes
         if self.num_training_classes >= len(set(self.y)):
+
             self.num_training_classes = -1
             print("WARNING: more training classes than available in the dataset were requested. \
                    All the available classes (", len(self.y), ") will be used.")
@@ -96,6 +101,8 @@ class ClassificationTask(Task):
             self.num_test_samples_per_class = -1
             print("WARNING: more test samples per class than available test instances were requested. \
                    All the available instances (", int(len(self.y)*(1-self.split_train_test)), ") will be used.")
+
+        self.label_offset = 0
 
         self.reset()
 
@@ -199,10 +206,18 @@ class ClassificationTask(Task):
         # TODO: wrap in a tf.function?
         # TODO: also: for... minibatch, run this code, which corresponds to .update_state
         out_dict = {}
+
+        pred_test_y = model(test_X).numpy()
+
+        if model(test_X).shape[-1] > self.num_training_classes:
+            # Likely multi-headed system. We will only let the outputs from output units in [offset, offset+num_training_classes) to pass, and zero-out the other outputs.
+            pred_test_y[:, 0:self.label_offset] = 0.0
+            pred_test_y[:, (self.label_offset+self.num_training_classes):] = 0.0
+
         if model.metrics_names[0] == 'loss':
             mets = [lambda true,pred: tf.reduce_mean(model.loss(true,pred)) + (tf.add_n(model.losses) if len(model.losses)>0 else 0)] + model.metrics
         for i in range(len(model.metrics_names)):
-            val = mets[i](test_y, model(test_X))
+            val = mets[i](test_y, pred_test_y)
             if model.metrics_names[i] != 'loss':
                 mets[i].reset_states()
 
@@ -213,15 +228,16 @@ class ClassificationTask(Task):
     def sample_batch(self, batch_size):
         batch_indices = np.random.choice(self.train_indices, batch_size, replace=False)
         batch_X = self.X[batch_indices]
-        batch_y = np.asarray([self.classes_ids.index(c) for c in self.y[batch_indices]], dtype=np.int64)
+        batch_y = np.asarray([self.classes_ids.index(c)+self.label_offset
+                              for c in self.y[batch_indices]], dtype=np.int64)
         return batch_X, batch_y
 
     def get_train_set(self):
-        return self.X[self.train_indices], np.asarray([self.classes_ids.index(c)
+        return self.X[self.train_indices], np.asarray([self.classes_ids.index(c)+self.label_offset
                                                        for c in self.y[self.train_indices]], dtype=np.int64)
 
     def get_test_set(self):
-        return self.X[self.test_indices], np.asarray([self.classes_ids.index(c)
+        return self.X[self.test_indices], np.asarray([self.classes_ids.index(c)+self.label_offset
                                                       for c in self.y[self.test_indices]], dtype=np.int64)
 
 
@@ -264,7 +280,7 @@ class ClassificationTaskFromFiles(ClassificationTask):
             batch_x = [None]*len(indices)
             for i, ind in enumerate(indices):
                 batch_x[i] = self.input_parse_fn(self.X[ind])
-        batch_y = np.asarray([self.classes_ids.index(c) for c in self.y[indices]], dtype=np.int64)
+        batch_y = np.asarray([self.index(c)+self.label_offset for c in self.y[indices]], dtype=np.int64)
         return np.asarray(batch_x), batch_y
 
     def sample_batch(self, batch_size):
@@ -289,12 +305,16 @@ class TaskAsSequenceOfTasks(Task):
     The `TaskAsSequenceOfTasks' class addresses this concern by representing a single `Task' as a sequence of tasks
     sampled from a distribution.
     """
-    def __init__(self, tasks_distribution, min_length, max_length):
+    def __init__(self, tasks_distribution, min_length, max_length, multi_headed=False, num_classes_per_head=-1):
         """
-        tasks_distribution: TaskDistribution
+        tasks_distribution : TaskDistribution
             Task distribution object to be used to sample tasks from when generating the sequences.
-        min_length / max_length: int
+        min_length / max_length : int
             Minimum and maximum number of tasks in the sequence, inclusive.
+        multi_headed : bool
+            If multi_headed is True, all the labels of the tasks in the sequence will be added an offset of size num_classes_per_head for each task in the sequence. NOTE: the output layer of the model must be of size >= max_length*num_classes_per_head.
+        num_classes_per_head : int
+            Only valid if 'multi_headed' is True. See above for details.
         """
         self.tasks_distribution = tasks_distribution
 
@@ -302,6 +322,10 @@ class TaskAsSequenceOfTasks(Task):
 
         self.min_length = min_length
         self.max_length = max_length
+
+        self.multi_headed = multi_headed
+        self.num_classes_per_head = num_classes_per_head
+
         self.reset()
 
     def set_length_of_sequence(self, min_length, max_length):
@@ -322,6 +346,15 @@ class TaskAsSequenceOfTasks(Task):
         """
         new_length = np.random.randint(self.min_length, self.max_length+1)
         self.current_task_sequence = self.tasks_distribution.sample_batch(batch_size=new_length)
+
+        if self.multi_headed > 0:
+            if len(set(self.current_task_sequence)) < len(self.current_task_sequence):
+                print("ERROR: task objects must be independent for use with MULTI-HEADED TaskAsSequenceOfTasks")
+                sys.exit()
+
+            for i in range(len(self.current_task_sequence)):
+                offset = i*self.num_classes_per_head
+                self.current_task_sequence[i].label_offset = offset
 
     def sample_batch(self, batch_size):
         print("NOT IMPLEMENTED. Fit and evaluate the task using `fit_n_iterations' and `evaluate'")
