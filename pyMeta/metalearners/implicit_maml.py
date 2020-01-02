@@ -208,8 +208,8 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
 
         test_gradients = [g.numpy() for g in grads_on_batch(self.model, test_x, test_y)]
 
-        x0 = deepcopy(test_gradients)
-        #x0 = [np.zeros(var.shape, dtype=np.float32) for var in self.current_initial_parameters]
+        #x0 = deepcopy(test_gradients)
+        x0 = [np.zeros(var.shape, dtype=np.float32) for var in self.current_initial_parameters]
 
         b = deepcopy(test_gradients)
 
@@ -221,9 +221,23 @@ class iMAMLMetaLearner(GradBasedMetaLearner):
         #self.n_iters_optimizer = 10
 
 
-        x = conjugate_gradient(Av, b, x0, self.n_iters_optimizer, debug=debug)
-        #x = steepest_descent(Av, b, x0, self.n_iters_optimizer, debug=debug)
+        #x = conjugate_gradient(Av, b, x0, self.n_iters_optimizer, debug=debug)
+        x = steepest_descent(Av, b, x0, self.n_iters_optimizer, debug=debug)
         #x = plain_gradient_descent(Av, b, x0, self.n_iters_optimizer, learning_rate=0.01, debug=debug)
+
+        # lambda=2.0?
+
+
+        """
+        # vonNeumann approximation of the inverse of (I+1/lambda*H)^{-1}
+        x = deepcopy(b) # j=0:  (-1/l*H)^j * v = v 
+        prev_v = deepcopy(b)
+        for j in range(1, 5):
+            Hv = Hvp(self.model, train_x, train_y, prev_v)
+            prev_v = [-1.0/self.lambda_reg * Hv[i].numpy() for i in range(len(b))]
+            x = [x[i] + prev_v[i] for i in range(len(b))]
+        #"""
+
 
 
         if debug:
