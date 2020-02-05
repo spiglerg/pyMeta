@@ -92,3 +92,7 @@ python3 example_metatrain.py --dataset="miniimagenet" --metamodel="imaml" --num_
 + Support for reinforcement learning tasks: "models" (neural networks) should be wrapped by "agents", and a new base task type RLTask should be introduced, that can perform model updates by running interactions between the supplied agent and an environment for a specific number of iterations / episodes. Special RLTask-derived classes could be OpenAIGymTask.
 
 
+## Acknowledgements
+
++ Dennis Broekhuizen: addition of CORe50 to pyMeta + baseline, as part of MSc Data Science & Society thesis work, Tilburg University, 2019 [original repository](https://github.com/DennisBroekhuizen/pyMetaCORe50).
+
