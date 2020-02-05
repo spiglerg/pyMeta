@@ -11,7 +11,8 @@ from pyMeta.metalearners.fomaml import FOMAMLMetaLearner
 
 
 class SeqFOMAMLMetaLearner(FOMAMLMetaLearner):
-    def __init__(self, model, optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), name="SeqFOMAMLMetaLearner"):
+    def __init__(self, model, optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), name="SeqFOMAMLMetaLearner",
+                 post_weights_reset_cb=None):
         """
         Extension of FOMAML to learn to avoid catastrophic forgetting by training on sequences of tasks.
         The base gradient is the expected final (test) gradient, averaged across tasks in a sequence. Auxliary
@@ -21,6 +22,17 @@ class SeqFOMAMLMetaLearner(FOMAMLMetaLearner):
         See FOMAMLMetaLearner for the detailed documentation.
         """
         super().__init__(model=model, optimizer=optimizer, name=name)
+        self.post_weights_reset_cb = post_weights_reset_cb
+
+    def task_begin(self, task=None, **kwargs):
+        """
+        Method to be called before training on each meta-batch task
+        """
+        # Reset the model to the current weights initialization
+        super().task_begin(task=task, **kwargs)
+
+        if self.post_weights_reset_cb is not None:
+            self.post_weights_reset_cb(self.model)
 
     def task_end(self, task=None, **kwargs):
         """

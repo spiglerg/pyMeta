@@ -5,11 +5,12 @@ from pyMeta.tasks.dataset_from_files_tasks import create_omniglot_from_files_tas
 from pyMeta.tasks.omniglot_tasks import create_omniglot_allcharacters_task_distribution
 from pyMeta.tasks.cifar100_tasks import create_cifar100_task_distribution
 from pyMeta.tasks.miniimagenet_tasks import create_miniimagenet_task_distribution
+from pyMeta.contrib_tasks.core50 import create_core50_from_npz_task_distribution
 from pyMeta.tasks.sinusoid_tasks import create_sinusoid_task_distribution
 from pyMeta.metalearners.reptile import ReptileMetaLearner
 from pyMeta.metalearners.fomaml import FOMAMLMetaLearner
 from pyMeta.metalearners.implicit_maml import iMAMLMetaLearner
-from pyMeta.networks import make_omniglot_cnn_model, make_miniimagenet_cnn_model, make_sinusoid_model
+from pyMeta.networks import make_omniglot_cnn_model, make_miniimagenet_cnn_model, make_sinusoid_model, make_core50_cnn_model
 
 import sys, os
 import time
@@ -33,7 +34,7 @@ if gpus:
 FLAGS = flags.FLAGS
 
 # Dataset and model options
-flags.DEFINE_string('dataset', 'omniglot', 'omniglot or miniimagenet or sinusoid or cifar100')
+flags.DEFINE_string('dataset', 'omniglot', 'omniglot or miniimagenet or sinusoid or cifar100 or core50')
 flags.DEFINE_string('metamodel', 'fomaml', 'fomaml or reptile or imaml')
 
 flags.DEFINE_integer('num_output_classes', 5, 'Number of classes used in classification (e.g. 5-way classification).')
@@ -131,6 +132,21 @@ def main(argv):
         optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
         if FLAGS.metamodel == "reptile":
             optim = tf.keras.optimizers.Adam(lr=FLAGS.inner_lr, beta_1=0.0)
+        loss_function = custom_sparse_categorical_cross_entropy_loss
+        metrics = ['sparse_categorical_accuracy']
+
+    elif FLAGS.dataset == "core50":
+        metatrain_task_distribution, metaval_task_distribution, metatest_tasks_distribution = \
+                            create_core50_from_npz_task_distribution('datasets/core50/',
+                            num_training_samples_per_class=FLAGS.num_train_samples_per_class,
+                            num_test_samples_per_class=FLAGS.num_test_samples_per_class,
+                            num_training_classes=FLAGS.num_output_classes,
+                            meta_batch_size=FLAGS.meta_batch_size)
+
+        model = make_core50_cnn_model(FLAGS.num_output_classes)
+        model = make_miniimagenet_cnn_model(FLAGS.num_output_classes, input_shape=(128,128,3)) # this works well and it's fast, but it achieves lower performance than the other network (52% instead of 60%?)
+
+        optim = tf.keras.optimizers.SGD(lr=FLAGS.inner_lr)
         loss_function = custom_sparse_categorical_cross_entropy_loss
         metrics = ['sparse_categorical_accuracy']
 
@@ -254,7 +270,8 @@ def main(argv):
 
         if outer_iter % FLAGS.save_every_k_iterations == 0:
             metalearner.task_begin(meta_batch[0])  # copy back the initial parameters to the model's weights
-            tf.saved_model.save(model, FLAGS.model_save_filename)
+            #tf.saved_model.save(model, FLAGS.model_save_filename)
+            model.save(FLAGS.model_save_filename+".h5")
 
 
     if FLAGS.dataset == "sinusoid":

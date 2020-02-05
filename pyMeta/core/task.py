@@ -209,7 +209,7 @@ class ClassificationTask(Task):
 
         pred_test_y = model(test_X).numpy()
 
-        if model(test_X).shape[-1] > self.num_training_classes:
+        if pred_test_y.shape[-1] > self.num_training_classes:
             # Likely multi-headed system. We will only let the outputs from output units in [offset, offset+num_training_classes) to pass, and zero-out the other outputs.
             pred_test_y[:, 0:self.label_offset] = 0.0
             pred_test_y[:, (self.label_offset+self.num_training_classes):] = 0.0
@@ -217,11 +217,11 @@ class ClassificationTask(Task):
         if model.metrics_names[0] == 'loss':
             mets = [lambda true,pred: tf.reduce_mean(model.loss(true,pred)) + (tf.add_n(model.losses) if len(model.losses)>0 else 0)] + model.metrics
         for i in range(len(model.metrics_names)):
-            val = mets[i](test_y, pred_test_y)
             if model.metrics_names[i] != 'loss':
                 mets[i].reset_states()
+            val = mets[i](test_y, pred_test_y)
 
-            out_dict[model.metrics_names[i]] = val
+            out_dict[model.metrics_names[i]] = val.numpy()
 
         return out_dict
 
@@ -280,7 +280,7 @@ class ClassificationTaskFromFiles(ClassificationTask):
             batch_x = [None]*len(indices)
             for i, ind in enumerate(indices):
                 batch_x[i] = self.input_parse_fn(self.X[ind])
-        batch_y = np.asarray([self.index(c)+self.label_offset for c in self.y[indices]], dtype=np.int64)
+        batch_y = np.asarray([self.classes_ids.index(c)+self.label_offset for c in self.y[indices]], dtype=np.int64)
         return np.asarray(batch_x), batch_y
 
     def sample_batch(self, batch_size):
@@ -347,7 +347,7 @@ class TaskAsSequenceOfTasks(Task):
         new_length = np.random.randint(self.min_length, self.max_length+1)
         self.current_task_sequence = self.tasks_distribution.sample_batch(batch_size=new_length)
 
-        if self.multi_headed > 0:
+        if self.multi_headed:
             if len(set(self.current_task_sequence)) < len(self.current_task_sequence):
                 print("ERROR: task objects must be independent for use with MULTI-HEADED TaskAsSequenceOfTasks")
                 sys.exit()
