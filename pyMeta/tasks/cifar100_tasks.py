@@ -111,12 +111,14 @@ def create_cifar100_task_distribution(num_training_samples_per_class=-1,
     metatrain_task_distribution = TaskDistribution(tasks=metatrain_tasks_list,
                                                    task_probabilities=[1.0],
                                                    batch_size=meta_batch_size,
-                                                   sample_with_replacement=True)
+                                                   sample_with_replacement=True,
+                                                   use_classes_only_once=True)
 
     metatest_task_distribution = TaskDistribution(tasks=metatest_tasks_list,
                                                   task_probabilities=[1.0],
                                                   batch_size=meta_batch_size,
-                                                  sample_with_replacement=True)
+                                                  sample_with_replacement=True,
+                                                   use_classes_only_once=True)
 
     # TODO: split into validation and test!
     return metatrain_task_distribution, metatest_task_distribution, metatest_task_distribution

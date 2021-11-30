@@ -8,7 +8,7 @@ from copy import deepcopy
 
 
 class TaskDistribution:
-    def __init__(self, tasks, task_probabilities, batch_size=1, sample_with_replacement=True):
+    def __init__(self, tasks, task_probabilities, batch_size=1, sample_with_replacement=True, use_classes_only_once=True):
         """
         Wrapper around tasks for use in meta-learning.
         TaskDistribution allows the definition of a distribution over Tasks from which batches of tasks can be easily
@@ -36,6 +36,9 @@ class TaskDistribution:
             regression example.)
             WARNING: if TaskDistribution objects are compounded, deepcopying them may become expensive. It is better
             to use a single TaskDistribution, and aggregate all lists together, with the appropriate probabilities.
+        use_classes_only_once : bool
+            If True, then the same class id cannot be used in two different tasks in the same batch.
+
         """
         self.tasks = tasks
 
@@ -44,6 +47,8 @@ class TaskDistribution:
 
         self.batch_size = batch_size
         self.sample_with_replacement = sample_with_replacement
+
+        self.use_classes_only_once = use_classes_only_once
 
         self.reset()
 
@@ -66,15 +71,23 @@ class TaskDistribution:
             batch = []
 
             included_tasks = set()
+            all_previous_class_ids = set()
             for b in tmp_batch:
                 if b in included_tasks:
                     newb = deepcopy(b)
-                    newb.reset()
-                    batch.append(newb)
                 else:
-                    b.reset()
-                    batch.append(b)
+                    newb = b
                     included_tasks.add(b)
+
+                # TODO: very hacky...
+                if self.use_classes_only_once:
+                    newb.class_ids_to_avoid = all_previous_class_ids
+
+                newb.reset()
+                batch.append(newb)
+
+                all_previous_class_ids = all_previous_class_ids.union(newb.classes_ids)
+
         else:
             batch = np.random.choice(self.tasks, batch_size, replace=False)
 

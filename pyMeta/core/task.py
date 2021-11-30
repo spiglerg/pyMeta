@@ -50,7 +50,7 @@ def train_on_batch(model, batch_X, batch_y):
 
 class ClassificationTask(Task):
     def __init__(self, X, y, num_training_samples_per_class=-1, num_test_samples_per_class=-1, num_training_classes=-1,
-                 split_train_test=0.8):
+                 split_train_test=0.8, class_ids_to_avoid=[]):
         """
             X: ndarray [size, features, ...]
                 Training dataset X.
@@ -70,6 +70,9 @@ class ClassificationTask(Task):
                 On each reset, the instances in the dataset are first split into a train and test set. From those,
                 num_training_samples_per_class and num_test_samples_per_class are sampled.
                 If `split_train_test' < 0, then the split is automatically set to #train_samples / (#train_samples + #test_samples)
+            class_ids_to_avoid : list[]
+                On each reset, when new class indices are sampled, 'classes_ids_to_avoid' ignored. An error is printed if this is not possible,
+                and the program is hard-terminated as the behavior would be undefined.
 
             Note: HACKY: a field 'label_offset' is always defined. It can be overridden after the object has been created. The purpose is to add a fixed starting offset for all labels, especially for use in multi_headed setups.
         """
@@ -78,12 +81,14 @@ class ClassificationTask(Task):
 
         self._deepcopy_avoid_copying = ['X', 'y']
 
+        self.class_ids_to_avoid = set(class_ids_to_avoid)
+
         self.num_training_classes = num_training_classes
-        if self.num_training_classes >= len(set(self.y)):
+        if self.num_training_classes >= len(set(self.y).difference(self.class_ids_to_avoid)):
 
             self.num_training_classes = -1
             print("WARNING: more training classes than available in the dataset were requested. \
-                   All the available classes (", len(self.y), ") will be used.")
+                   All the available classes (", len(self.y), ") will be used. \n ** This could be due to the use of 'class_ids_to_avoid'. **")
 
         self.split_train_test = split_train_test
         if self.split_train_test < 0:
@@ -124,7 +129,7 @@ class ClassificationTask(Task):
         return result
 
     def reset(self):
-        classes_to_use = list(set(self.y))
+        classes_to_use = list(set(self.y).difference(self.class_ids_to_avoid))
         if self.num_training_classes >= 1:
             classes_to_use = np.random.choice(classes_to_use, self.num_training_classes, replace=False)
 
@@ -174,12 +179,12 @@ class ClassificationTask(Task):
 
             # TFv1 : the following does not work in TFv2 if the model is defined with tf.function (e.g., w/ Keras'
             # functional API)
-            ## loss = model.train_on_batch(tf.constant(batch_X), tf.constant(batch_y))
+            loss = model.train_on_batch(tf.constant(batch_X), tf.constant(batch_y))
 
             # TFv2: optimized training step using @tf.function. The function needs to be defined outside this object
             # because task objects are created in large numbers, and it would require re-compiling the graph every
             # time.
-            loss = train_on_batch(model, tf.constant(batch_X), tf.constant(batch_y))
+            #loss = train_on_batch(model, tf.constant(batch_X), tf.constant(batch_y))
 
             #print(model.metrics[0](batch_y, model(batch_X)))
 
@@ -188,7 +193,7 @@ class ClassificationTask(Task):
         ret_info = {'last_minibatch_loss': loss}
         return ret_info
 
-    def evaluate(self, model, evaluate_on_train=False):
+    def evaluate(self, model, evaluate_on_train=False, multi_headed_mask=False):
         """
         Evaluate a Keras `model' on the current Task, according to the metrices provided when building the model.
         """
@@ -198,10 +203,11 @@ class ClassificationTask(Task):
             test_X, test_y = self.get_test_set()
 
         # Only valid with TFv1? (in this case, with the model defined using Keras function APIs
-        #out = model.evaluate(test_X, test_y, batch_size=1000, verbose=0)
+        #out = model.evaluate(test_X, test_y, batch_size=1000, verbose=0, callbacks=cb)
         #if not isinstance(out, list):
         #    out = [out]
         #out_dict = dict(zip(model.metrics_names, out))
+
 
         # TODO: wrap in a tf.function?
         # TODO: also: for... minibatch, run this code, which corresponds to .update_state
@@ -209,7 +215,7 @@ class ClassificationTask(Task):
 
         pred_test_y = model(test_X).numpy()
 
-        if pred_test_y.shape[-1] > self.num_training_classes:
+        if multi_headed_mask:
             # Likely multi-headed system. We will only let the outputs from output units in [offset, offset+num_training_classes) to pass, and zero-out the other outputs.
             pred_test_y[:, 0:self.label_offset] = 0.0
             pred_test_y[:, (self.label_offset+self.num_training_classes):] = 0.0
@@ -219,9 +225,15 @@ class ClassificationTask(Task):
         for i in range(len(model.metrics_names)):
             if model.metrics_names[i] != 'loss':
                 mets[i].reset_states()
-            val = mets[i](test_y, pred_test_y)
 
-            out_dict[model.metrics_names[i]] = val.numpy()
+            # TODO: AWFUL hack; this broke some time ago apparently!
+            if model.metrics_names[i] == 'sparse_categorical_accuracy':
+                pred_labels = np.argmax(pred_test_y, -1)
+                val = np.sum(np.equal(test_y, pred_labels)) / test_y.shape[0]
+                out_dict[model.metrics_names[i]] = val
+            else:
+                val = mets[i](test_y, pred_test_y)
+                out_dict[model.metrics_names[i]] = val.numpy()
 
         return out_dict
 
@@ -243,7 +255,7 @@ class ClassificationTask(Task):
 
 class ClassificationTaskFromFiles(ClassificationTask):
     def __init__(self, X, y, num_training_samples_per_class=-1, num_test_samples_per_class=-1,
-                 num_training_classes=-1, split_train_test=0.8, input_parse_fn=None, num_parallel_processes=None):
+                 num_training_classes=-1, split_train_test=0.8, class_ids_to_avoid=[], input_parse_fn=None, num_parallel_processes=None):
         """
         input_parse_fn : function
             This function takes a filename as input and returns a loaded and processed sample.
@@ -260,7 +272,7 @@ class ClassificationTaskFromFiles(ClassificationTask):
         super().__init__(X=X, y=y,
                          num_training_samples_per_class=num_training_samples_per_class,
                          num_test_samples_per_class=num_test_samples_per_class,
-                         num_training_classes=num_training_classes, split_train_test=split_train_test)
+                         num_training_classes=num_training_classes, split_train_test=split_train_test, class_ids_to_avoid=class_ids_to_avoid)
 
     def reset(self):
         super().reset()
@@ -280,6 +292,7 @@ class ClassificationTaskFromFiles(ClassificationTask):
             batch_x = [None]*len(indices)
             for i, ind in enumerate(indices):
                 batch_x[i] = self.input_parse_fn(self.X[ind])
+
         batch_y = np.asarray([self.classes_ids.index(c)+self.label_offset for c in self.y[indices]], dtype=np.int64)
         return np.asarray(batch_x), batch_y
 
@@ -345,6 +358,9 @@ class TaskAsSequenceOfTasks(Task):
         Generate a new sequence of tasks.
         """
         new_length = np.random.randint(self.min_length, self.max_length+1)
+        for t in self.current_task_sequence:
+            del t
+
         self.current_task_sequence = self.tasks_distribution.sample_batch(batch_size=new_length)
 
         if self.multi_headed:
@@ -392,7 +408,7 @@ class TaskAsSequenceOfTasks(Task):
 
         return ret_info
 
-    def evaluate(self, model, evaluate_last_task_only=False):
+    def evaluate(self, model, evaluate_last_task_only=False, multi_headed_mask=False):
         """
         Evaluate the performance of the model on all tasks in the sequence, unless evaluate_last_task_only=True.
         """
@@ -404,7 +420,7 @@ class TaskAsSequenceOfTasks(Task):
         out_dict = {}
         for task_i in range(len(tasks_to_evaluate)):
             task = tasks_to_evaluate[task_i]
-            ret = task.evaluate(model)
+            ret = task.evaluate(model, multi_headed_mask=multi_headed_mask)
 
             if len(tasks_to_evaluate) == 1:
                 out_dict = ret

@@ -146,12 +146,14 @@ def create_omniglot_from_files_task_distribution(path_to_dataset,
     metatrain_task_distribution = TaskDistribution(tasks=metatrain_tasks_list,
                                                    task_probabilities=[1.0],
                                                    batch_size=meta_batch_size,
-                                                   sample_with_replacement=True)
+                                                   sample_with_replacement=True,
+                                                   use_classes_only_once=True)
 
     metatest_task_distribution = TaskDistribution(tasks=metatest_tasks_list,
                                                   task_probabilities=[1.0],
                                                   batch_size=meta_batch_size,
-                                                  sample_with_replacement=True)
+                                                  sample_with_replacement=True,
+                                                   use_classes_only_once=True)
 
     # TODO: split into validation and test!
     return metatrain_task_distribution, metatest_task_distribution, metatest_task_distribution

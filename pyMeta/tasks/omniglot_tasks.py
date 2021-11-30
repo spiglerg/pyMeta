@@ -100,6 +100,8 @@ def create_omniglot_allcharacters_task_distribution(path_to_pkl,
     charomniglot_trainY = trY
     charomniglot_testY = teY
 
+    print('Loaded ', len(trY), 'training classes and ', len(teY), 'test classes.')
+
     metatrain_tasks_list = [ClassificationTask(charomniglot_trainX,
                                                charomniglot_trainY,
                                                num_training_samples_per_class,
@@ -116,12 +118,14 @@ def create_omniglot_allcharacters_task_distribution(path_to_pkl,
     metatrain_task_distribution = TaskDistribution(tasks=metatrain_tasks_list,
                                                    task_probabilities=[1.0],
                                                    batch_size=meta_batch_size,
-                                                   sample_with_replacement=True)
+                                                   sample_with_replacement=True,
+                                                   use_classes_only_once=True)
 
     metatest_task_distribution = TaskDistribution(tasks=metatest_tasks_list,
                                                   task_probabilities=[1.0],
                                                   batch_size=meta_batch_size,
-                                                  sample_with_replacement=True)
+                                                  sample_with_replacement=True,
+                                                   use_classes_only_once=True)
 
     # TODO: split into validation and test!
     return metatrain_task_distribution, metatest_task_distribution, metatest_task_distribution
